@@ -190,6 +190,28 @@ const OrderController = {
         } catch (error) {
             next(error);
         }
+    },
+    
+    // 9. Thống kê
+    getStatistics: async (req, res, next) => {
+        try {
+            console.log('GET STATISTICS CALLED FOR:', req.user.maTaiKhoan, req.query);
+            const { period, date } = req.query; // period: day, month, year. date: YYYY-MM-DD
+            const db = require('../config/db');
+            const rows = await db.query(
+                'SELECT maGianHang FROM gianhang WHERE maTaiKhoan = ?',
+                [req.user.maTaiKhoan]
+            );
+            if (!rows[0]) {
+                return res.status(404).json({ success: false, message: 'Không tìm thấy gian hàng.' });
+            }
+            const maGianHang = rows[0].maGianHang;
+
+            const data = await OrderModel.getStatistics(maGianHang, period, date);
+            res.status(200).json({ success: true, data });
+        } catch (error) {
+            next(error);
+        }
     }
 };
 

@@ -8,8 +8,26 @@ class MenuItemRow extends StatelessWidget {
   final VoidCallback onTap;
   const MenuItemRow({super.key, required this.mObj, required this.onTap});
 
+  String _formatPrice(dynamic price) {
+    if (price == null) return '';
+    final val = (price as num?)?.toInt() ?? 0;
+    if (val <= 0) return '';
+    final str = val.toString();
+    final buffer = StringBuffer();
+    for (int i = 0; i < str.length; i++) {
+      if (i > 0 && (str.length - i) % 3 == 0) buffer.write('.');
+      buffer.write(str[i]);
+    }
+    return '${buffer}đ';
+  }
+
   @override
   Widget build(BuildContext context) {
+    final rateStr = mObj["rate"]?.toString() ?? '';
+    final hasRating = rateStr.isNotEmpty;
+    final ratingCount = mObj["rating"]?.toString() ?? '';
+    final priceFormatted = _formatPrice(mObj["price"]);
+
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 8),
       child: InkWell(
@@ -57,20 +75,38 @@ class MenuItemRow extends StatelessWidget {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.start,
                           children: [
-                            Image.asset(
-                              "assets/img/rate.png",
-                              width: 10,
-                              height: 10,
-                              fit: BoxFit.cover,
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              mObj["rate"]?.toString() ?? '',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                  color: TColor.primary, fontSize: 11),
-                            ),
-                            const SizedBox(width: 8),
+                            // Sao rating
+                            if (hasRating) ...[
+                              Icon(Icons.star_rounded,
+                                  color: const Color(0xFFFFB800), size: 13),
+                              const SizedBox(width: 3),
+                              Text(
+                                rateStr,
+                                style: TextStyle(
+                                    color: TColor.primary, fontSize: 11, fontWeight: FontWeight.w600),
+                              ),
+                              if (ratingCount.isNotEmpty) ...[
+                                const SizedBox(width: 2),
+                                Text(
+                                  '($ratingCount)',
+                                  style: TextStyle(
+                                      color: TColor.white.withValues(alpha: 0.7), fontSize: 10),
+                                ),
+                              ],
+                              const SizedBox(width: 8),
+                            ],
+                            // Giá tiền
+                            if (priceFormatted.isNotEmpty) ...[
+                              Text(
+                                priceFormatted,
+                                style: TextStyle(
+                                  color: TColor.primary,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                            ],
                             Expanded(
                               child: Text(
                                 [
@@ -78,12 +114,12 @@ class MenuItemRow extends StatelessWidget {
                                     mObj["type"]?.toString(),
                                   if ((mObj["food_type"]?.toString() ?? '').isNotEmpty)
                                     mObj["food_type"]?.toString()
-                                ].join(' . '),
+                                ].join(' · '),
                                 textAlign: TextAlign.start,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
-                                    color: TColor.white, fontSize: 12),
+                                    color: TColor.white.withValues(alpha: 0.85), fontSize: 12),
                               ),
                             ),
                           ],

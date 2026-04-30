@@ -17,6 +17,39 @@ const GianHangModel = {
         return rows[0];
     },
 
+    // [DÀNH CHO KHÁCH HÀNG] Lấy rating trung bình của gian hàng (từ bảng danhgia + monan)
+    getStoreRating: async (maGianHang) => {
+        const rows = await db.query(
+            `SELECT 
+                ROUND(AVG(dg.soSao), 1) AS avgRating,
+                COUNT(dg.maDanhGia) AS totalReviews
+             FROM danhgia dg
+             JOIN monan m ON dg.maMonAn = m.maMonAn
+             WHERE m.maGianHang = ?`,
+            [maGianHang]
+        );
+        return rows[0] || { avgRating: null, totalReviews: 0 };
+    },
+
+    // [DÀNH CHO KHÁCH HÀNG] Lấy top 3 món nổi bật của gian hàng
+    getTopDishes: async (maGianHang, limit = 3) => {
+        const rows = await db.query(
+            `SELECT 
+                m.maMonAn, m.tenMonAn, m.hinhAnh, m.giaTien,
+                COALESCE(m.diemDanhGia, 0) AS diemDanhGia,
+                COALESCE(m.luotDanhGia, 0) AS luotDanhGia,
+                COALESCE(m.soLuongDaBan, 0) AS soLuongDaBan
+             FROM monAn m
+             WHERE m.maGianHang = ? AND m.daXoa = 0 AND m.trangThai = 1
+             ORDER BY 
+                (COALESCE(m.diemDanhGia, 0) * 0.5 + COALESCE(m.soLuongDaBan, 0) * 0.5) DESC,
+                m.maMonAn ASC
+             LIMIT ?`,
+            [maGianHang, limit]
+        );
+        return rows;
+    },
+
     // [DÀNH CHO CHỦ QUÁN] Lấy thông tin gian hàng dựa vào maTaiKhoan
     findByOwnerId: async (maTaiKhoan) => {
         const rows = await db.query(

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_rating_bar/flutter_rating_bar.dart';
 import 'package:food_delivery/common_widget/round_icon_button.dart';
 
+import '../../../common/app_alert.dart';
 import '../../../common/color_extension.dart';
 import '../../../common/globs.dart';
 import '../../../common/service_call.dart';
@@ -124,9 +125,7 @@ class _ItemDetailsViewState extends State<ItemDetailsView> {
 
     if (resolvedDishId == null || resolvedDishId <= 0) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Không xác định được món để thêm vào giỏ')),
-      );
+      AppAlert.show(context, message: 'Không xác định được món để thêm vào giỏ', type: 'error');
       return;
     }
 
@@ -143,19 +142,12 @@ class _ItemDetailsViewState extends State<ItemDetailsView> {
 
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Đã thêm ${_dishName(dish)} (x$qty) vào giỏ hàng!'),
-          backgroundColor: Colors.green,
-        ),
-      );
-      // Cáº­p nháº­t badge
+      AppAlert.show(context, message: 'Đã thêm ${_dishName(dish)} (x$qty) vào giỏ hàng!');
+      // Cập nhật badge
       await _loadCartCount();
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.toString())),
-      );
+      AppAlert.show(context, message: error.toString(), type: 'error');
     } finally {
       if (mounted) setState(() => isAdding = false);
     }

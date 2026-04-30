@@ -8,8 +8,15 @@ const GianHangController = {
     getAllStores: async (req, res, next) => {
         try {
             const stores = await GianHangModel.getAll();
-            const mapped = stores.map(s => {
+
+            // Lấy rating và top dishes song song cho tất cả gian hàng
+            const enriched = await Promise.all(stores.map(async (s) => {
                 const url = buildUrl(req, s.banner);
+                const [ratingInfo, topDishes] = await Promise.all([
+                    GianHangModel.getStoreRating(s.maGianHang),
+                    GianHangModel.getTopDishes(s.maGianHang, 3),
+                ]);
+
                 return {
                     id: s.maGianHang,
                     name: s.tenGianHang,
@@ -17,10 +24,24 @@ const GianHangController = {
                     bannerUrl: url,
                     location: s.moTa,
                     openHours: s.gioMoCua,
-                    totalDishes: '10'
+                    totalDishes: '10',
+                    // Rating trung bình từ đánh giá khách hàng
+                    avgRating: ratingInfo.avgRating ? parseFloat(ratingInfo.avgRating) : null,
+                    totalReviews: parseInt(ratingInfo.totalReviews) || 0,
+                    // Top 3 món nổi bật
+                    topDishes: topDishes.map(d => ({
+                        id: d.maMonAn,
+                        name: d.tenMonAn,
+                        imageUrl: buildUrl(req, d.hinhAnh),
+                        price: parseFloat(d.giaTien) || 0,
+                        rating: parseFloat(d.diemDanhGia) || 0,
+                        reviewCount: parseInt(d.luotDanhGia) || 0,
+                        soldCount: parseInt(d.soLuongDaBan) || 0,
+                    })),
                 };
-            });
-            res.status(200).json({ success: true, data: mapped });
+            }));
+
+            res.status(200).json({ success: true, data: enriched });
         } catch (error) {
             next(error);
         }

@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
+import '../../common/app_alert.dart';
 import '../../common/color_extension.dart';
 import '../../common/globs.dart';
 import '../../common/service_call.dart';
 
-enum _OrderTab { pending, preparing, completed }
+enum _OrderTab { pending, completed }
 
 class StaffOrdersView extends StatefulWidget {
-  const StaffOrdersView({super.key});
+  final VoidCallback? onNavigateToPrepare;
+
+  const StaffOrdersView({super.key, this.onNavigateToPrepare});
 
   @override
   State<StaffOrdersView> createState() => _StaffOrdersViewState();
@@ -61,24 +64,14 @@ class _StaffOrdersViewState extends State<StaffOrdersView> {
       );
       if (!mounted) return;
       if (response is Map && response['success'] == true) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Đã báo xong! Hệ thống sẽ kiểm tra nhóm giao hàng.'),
-            backgroundColor: Colors.green,
-          ),
-        );
+        AppAlert.show(context, message: 'Đã báo xong! Hệ thống sẽ kiểm tra nhóm giao hàng.');
         await _loadOrders();
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-              content: Text(
-                  response?['message']?.toString() ?? 'Có lỗi xảy ra.')),
-        );
+        AppAlert.show(context, message: response?['message']?.toString() ?? 'Có lỗi xảy ra.', type: 'error');
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(e.toString())));
+        AppAlert.show(context, message: e.toString(), type: 'error');
       }
     } finally {
       if (mounted) setState(() => _processingIds.remove(maDonHang));
@@ -95,24 +88,17 @@ class _StaffOrdersViewState extends State<StaffOrdersView> {
       );
       if (!mounted) return;
       if (response is Map && response['success'] == true) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Đã bắt đầu làm!'),
-            backgroundColor: Colors.blue,
-          ),
-        );
-        await _loadOrders();
+        setState(() {
+          _orders.removeWhere((o) => o['maDonHang'] == maDonHang);
+          _processingIds.remove(maDonHang);
+        });
+        widget.onNavigateToPrepare?.call();
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-              content: Text(
-                  response?['message']?.toString() ?? 'Có lỗi xảy ra.')),
-        );
+        AppAlert.show(context, message: response?['message']?.toString() ?? 'Có lỗi xảy ra.', type: 'error');
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(e.toString())));
+        AppAlert.show(context, message: e.toString(), type: 'error');
       }
     } finally {
       if (mounted) setState(() => _processingIds.remove(maDonHang));
@@ -130,17 +116,16 @@ class _StaffOrdersViewState extends State<StaffOrdersView> {
         );
       }
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Đã bắt đầu làm nhóm đơn!'),
-          backgroundColor: Colors.blue,
-        ),
-      );
-      await _loadOrders();
+      setState(() {
+        _orders.removeWhere(
+          (o) => o['maNhomGiaoHang'] == maNhom || orderIds.contains(o['maDonHang']),
+        );
+        _processingIds.remove(-maNhom);
+      });
+      widget.onNavigateToPrepare?.call();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(e.toString())));
+        AppAlert.show(context, message: e.toString(), type: 'error');
       }
     } finally {
       if (mounted) setState(() => _processingIds.remove(-maNhom));
@@ -153,11 +138,8 @@ class _StaffOrdersViewState extends State<StaffOrdersView> {
       switch (_selectedTab) {
         case _OrderTab.pending:
           return ['pending', 'choxacnhan'].contains(status);
-        case _OrderTab.preparing:
-          return ['dangchuanbi', 'grouped', 'chogiao', 'chogiaohang', 'single_accepted', 'confirmed']
-              .contains(status);
         case _OrderTab.completed:
-          return ['delivered', 'dagiao'].contains(status);
+          return ['delivered', 'dagiao', 'chogiao', 'chogiaohang'].contains(status);
       }
     }).toList();
 
@@ -220,11 +202,9 @@ class _StaffOrdersViewState extends State<StaffOrdersView> {
   String _tabLabel(_OrderTab tab) {
     switch (tab) {
       case _OrderTab.pending:
-        return 'Pending';
-      case _OrderTab.preparing:
-        return 'Preparing';
+        return 'Đang xử lý';
       case _OrderTab.completed:
-        return 'Completed';
+        return 'Hoàn thành';
     }
   }
 
@@ -312,15 +292,17 @@ class _StaffOrdersViewState extends State<StaffOrdersView> {
                     ? _buildEmpty()
                     : RefreshIndicator(
                         onRefresh: _loadOrders,
-                        child: ListView.separated(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 16, vertical: 16),
-                          itemCount: filtered.length,
-                          separatorBuilder: (_, __) =>
-                              const SizedBox(height: 12),
-                          itemBuilder: (_, index) =>
-                              _buildOrderCard(filtered[index]),
-                        ),
+                        child: _selectedTab == _OrderTab.completed
+                            ? _buildGroupedCompletedList(filtered)
+                            : ListView.separated(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 16, vertical: 16),
+                                itemCount: filtered.length,
+                                separatorBuilder: (_, __) =>
+                                    const SizedBox(height: 12),
+                                itemBuilder: (_, index) =>
+                                    _buildOrderCard(filtered[index]),
+                              ),
                       ),
           ),
         ],
@@ -351,6 +333,175 @@ class _StaffOrdersViewState extends State<StaffOrdersView> {
         ],
       ),
     );
+  }
+
+  // ── Group completed orders by date+hour ──────────────────────────
+  Widget _buildGroupedCompletedList(List<Map<String, dynamic>> orders) {
+    // Group by "dd/MM HH:00"
+    final Map<String, List<Map<String, dynamic>>> groups = {};
+    for (final o in orders) {
+      final raw = o['thoiGianDat']?.toString() ?? '';
+      String label = 'Không rõ thời gian';
+      try {
+        final dt = DateTime.parse(raw).toLocal();
+        final day = dt.day.toString().padLeft(2, '0');
+        final month = dt.month.toString().padLeft(2, '0');
+        final hour = dt.hour.toString().padLeft(2, '0');
+        label = '$day/$month — $hour:00 – $hour:59';
+      } catch (_) {}
+      groups.putIfAbsent(label, () => []).add(o);
+    }
+
+    final keys = groups.keys.toList(); // already sorted desc from backend
+    return ListView.separated(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      itemCount: keys.length,
+      separatorBuilder: (_, __) => const SizedBox(height: 10),
+      itemBuilder: (_, i) => _buildTimeGroupCard(keys[i], groups[keys[i]]!),
+    );
+  }
+
+  Widget _buildTimeGroupCard(String label, List<Map<String, dynamic>> orders) {
+    final totalRevenue = orders.fold<double>(
+        0, (sum, o) => sum + _parseNum(o['tongTien'] ?? o['total'] ?? 0));
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Theme(
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          collapsedShape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          leading: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: TColor.primary.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(Icons.access_time_rounded, color: TColor.primary, size: 20),
+          ),
+          title: Text(
+            label,
+            style: const TextStyle(
+              fontWeight: FontWeight.w800,
+              fontSize: 14,
+              color: Color(0xFF1A1A1A),
+            ),
+          ),
+          subtitle: Padding(
+            padding: const EdgeInsets.only(top: 3),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.green.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    '${orders.length} đơn',
+                    style: const TextStyle(
+                        fontSize: 11, color: Colors.green, fontWeight: FontWeight.w700),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  '${_formatCurrency(totalRevenue)}đ',
+                  style: TextStyle(
+                      fontSize: 12, color: TColor.primary, fontWeight: FontWeight.w700),
+                ),
+              ],
+            ),
+          ),
+          children: orders
+              .map((o) => Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: _buildCompactOrderCard(o),
+                  ))
+              .toList(),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCompactOrderCard(Map<String, dynamic> order) {
+    final tenKhach = order['tenKhach']?.toString() ?? 'Khách hàng';
+    final tenToaNha = order['tenToaNha']?.toString() ?? '';
+    final tenPhong = order['tenPhong']?.toString() ?? '';
+    final dishes = order['danhSachMon']?.toString() ?? '';
+    final total = _parseNum(order['tongTien'] ?? order['total'] ?? 0);
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8F8F8),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFEEEEEE)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: Colors.green.withValues(alpha: 0.1),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.check_rounded, color: Colors.green, size: 18),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  tenKhach,
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
+                      color: Color(0xFF1A1A1A)),
+                ),
+                if (tenToaNha.isNotEmpty || tenPhong.isNotEmpty)
+                  Text(
+                    'Tòa $tenToaNha · Phòng $tenPhong',
+                    style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+                  ),
+                Text(
+                  dishes,
+                  style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+          Text(
+            '${_formatCurrency(total)}đ',
+            style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w800,
+                color: TColor.primary),
+          ),
+        ],
+      ),
+    );
+  }
+
+  double _parseNum(dynamic val) {
+    if (val is num) return val.toDouble();
+    return double.tryParse(val?.toString() ?? '') ?? 0;
   }
 
   Widget _buildOrderCard(Map<String, dynamic> order) {
@@ -491,7 +642,7 @@ class _StaffOrdersViewState extends State<StaffOrdersView> {
                 if (_selectedTab == _OrderTab.pending)
                   if (order['trangThaiDonHang'] == 'choXacNhan')
                     _buildActionButton(
-                      label: isProcessing ? 'Đang xử lý...' : 'Bắt đầu làm',
+                      label: isProcessing ? 'Đang xử lý...' : 'Xác nhận đơn',
                       isLoading: isProcessing,
                       onTap: isProcessing ? null : () {
                         if (isGroup) {
@@ -502,13 +653,7 @@ class _StaffOrdersViewState extends State<StaffOrdersView> {
                       },
                       color: Colors.blue,
                     )
-                  else
-                    _buildActionButton(
-                      label: isProcessing ? 'Đang xử lý...' : 'Đã chuẩn bị xong',
-                      isLoading: isProcessing,
-                      onTap: isProcessing ? null : () => _markReady(maDonHang),
-                      color: Colors.green,
-                    ),
+
               ],
             ),
           ),

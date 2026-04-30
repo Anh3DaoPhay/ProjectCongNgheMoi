@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:food_delivery/common/color_extension.dart';
 import 'package:food_delivery/common/extension.dart';
 import 'package:food_delivery/common_widget/round_button.dart';
+import 'package:food_delivery/view/customer/group/group_service.dart';
 import 'package:food_delivery/view/shared/login/login_view.dart';
 
 import '../../../common/globs.dart';
@@ -213,7 +214,13 @@ class _SignUpViewState extends State<SignUpView> {
           Globs.udStringSet(authToken, KKey.authToken);
         }
         Globs.udBoolSet(true, Globs.userLogin);
-        
+
+        // Load nhóm riêng theo user này
+        final userId = normalizedUser['id']?.toString() ??
+            normalizedUser['_id']?.toString() ??
+            normalizedUser['maTaiKhoan']?.toString() ?? '';
+        await GroupService.instance.initForUser(userId);
+
         Navigator.pushAndRemoveUntil(
             context,
             MaterialPageRoute(

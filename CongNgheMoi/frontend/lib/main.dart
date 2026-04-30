@@ -10,6 +10,7 @@ import 'package:food_delivery/view/customer/main_tabview/main_tabview.dart';
 import 'package:food_delivery/view/shared/on_boarding/startup_view.dart';
 import 'package:food_delivery/view/staff/staff_main_tab_view.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:food_delivery/view/customer/group/group_service.dart';
 
 import 'common/globs.dart';
 import 'common/my_http_overrides.dart';
@@ -46,6 +47,12 @@ void main() async {
         Globs.udValue(Globs.userPayload) as Map? ?? {});
     storedPayload.putIfAbsent(KKey.name, () => storedPayload["fullName"] ?? "");
     ServiceCall.userPayload = storedPayload;
+
+    // Load nhóm của đúng user đã đăng nhập sẵn
+    final uid = storedPayload['id']?.toString() ??
+        storedPayload['_id']?.toString() ??
+        storedPayload['maTaiKhoan']?.toString() ?? '';
+    await GroupService.instance.initForUser(uid);
   }
 
   configLoading();

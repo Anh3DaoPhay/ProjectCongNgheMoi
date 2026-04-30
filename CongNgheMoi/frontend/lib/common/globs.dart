@@ -1,4 +1,4 @@
-import 'dart:convert';
+﻿import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -88,6 +88,7 @@ class SVKey {
   static String get nodeUrl => mainUrl;
 
   static String get svLogin => '${authBaseUrl}login';
+  static String get svSocialLogin => '${authBaseUrl}social-login';
   static String get svSignUp => '${authBaseUrl}register';
   static String get svForgotPasswordRequest => '${authBaseUrl}forgot-password';
   static String get svForgotPasswordVerify => '${authBaseUrl}reset-password';
@@ -133,16 +134,16 @@ class SVKey {
   static String get svStaffStoreInfo => '${apiBaseUrl}canteens/me/info';
   static String get svStaffStoreMenu => '${apiBaseUrl}mon-an/me/menu';
   static String get svStaffUpdateStoreInfo => '${apiBaseUrl}canteens/me/info';
-  static String get svStaffUploadBanner => '${apiBaseUrl}canteens/me/upload-banner'; // Upload banner giàn hàng
+  static String get svStaffUploadBanner => '${apiBaseUrl}canteens/me/upload-banner'; // Upload banner giĂ n hĂ ng
 
   static String svStaffDeleteDish(dynamic dishId) => '${apiBaseUrl}mon-an/me/menu/$dishId';
   static String svStaffUpdateDish(dynamic dishId) => '${apiBaseUrl}mon-an/me/menu/$dishId';
   static String get svStaffCreateDish => '${apiBaseUrl}mon-an/me/menu';
-  static String get svStaffMenuDeleted => '${apiBaseUrl}mon-an/me/menu/deleted'; // Tab Ngừng bán
-  static String svStaffRestoreDish(dynamic dishId) => '${apiBaseUrl}mon-an/me/menu/$dishId/restore'; // Khôi phục
-  static String get svStaffUploadDishImage => '${apiBaseUrl}mon-an/me/menu/upload-image'; // Upload ảnh món
+  static String get svStaffMenuDeleted => '${apiBaseUrl}mon-an/me/menu/deleted'; // Tab Ngá»«ng bĂ¡n
+  static String svStaffRestoreDish(dynamic dishId) => '${apiBaseUrl}mon-an/me/menu/$dishId/restore'; // KhĂ´i phá»¥c
+  static String get svStaffUploadDishImage => '${apiBaseUrl}mon-an/me/menu/upload-image'; // Upload áº£nh mĂ³n
 
-  // ── Review / Rating ──
+  // â”€â”€ Review / Rating â”€â”€
   static String svReviewItems(dynamic orderId) => '${apiBaseUrl}reviews/order/$orderId/items';
   static String svReviewStatus(dynamic orderId) => '${apiBaseUrl}reviews/order/$orderId/status';
   static String svReviewByOrder(dynamic orderId) => '${apiBaseUrl}reviews/order/$orderId';
@@ -150,6 +151,12 @@ class SVKey {
   static String svReviewByDish(dynamic dishId) => '${apiBaseUrl}reviews/dish/$dishId';
   static String get svReviewUploadImage => '${apiBaseUrl}reviews/upload-image';
   static String get svAddress => '${apiBaseUrl}address';
+
+  // â”€â”€ Payment / VNPay â”€â”€
+  static String get svPaymentCreate     => '${apiBaseUrl}payment/create';
+  static String get svPaymentRefund     => '${apiBaseUrl}payment/refund';
+  static String svPaymentStatus(dynamic orderId) => '${apiBaseUrl}payment/status/$orderId';
+  static String get svPaymentReturnUrl  => '$mainUrl/api/payment/vnpay-return';
 }
 
 class KKey {
@@ -179,3 +186,5 @@ class MSG {
   static const success = "success";
   static const fail = "fail";
 }
+  // invite endpoints added below svCustomerCartItems
+

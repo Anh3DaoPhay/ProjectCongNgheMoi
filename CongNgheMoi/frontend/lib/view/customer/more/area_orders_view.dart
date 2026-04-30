@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../../../common/color_extension.dart';
 import '../../../common/globs.dart';
 import '../../../common/service_call.dart';
+import '../../../common_widget/app_image_view.dart';
 
 class AreaOrdersView extends StatefulWidget {
   final int toaNha;
@@ -58,6 +59,7 @@ class _AreaOrdersViewState extends State<AreaOrdersView> {
   String _statusLabel(String? status) {
     switch (status) {
       case 'choGhepDon':   return '⏳ Chờ ghép đơn';
+      case 'choXacNhan':   return '🤝 Đang ghép...';
       case 'dangChuanBi':  return '👨‍🍳 Đang chuẩn bị';
       case 'choGiaoHang':  return '✅ Sẵn sàng giao';
       case 'dangGiao':     return '🛵 Đang giao';
@@ -70,6 +72,7 @@ class _AreaOrdersViewState extends State<AreaOrdersView> {
   Color _statusColor(String? status) {
     switch (status) {
       case 'choGhepDon':   return Colors.orange;
+      case 'choXacNhan':   return Colors.indigo;
       case 'dangChuanBi':  return Colors.blue;
       case 'choGiaoHang':  return Colors.teal;
       case 'dangGiao':     return Colors.green;
@@ -246,11 +249,32 @@ class _AreaOrdersViewState extends State<AreaOrdersView> {
                                       ],
                                     ),
                                     const SizedBox(height: 6),
-                                    Text(
-                                      order['danhSachMon']?.toString() ?? '',
-                                      style: TextStyle(color: TColor.secondaryText, fontSize: 12),
-                                      maxLines: 2,
-                                      overflow: TextOverflow.ellipsis,
+                                    Row(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        if (order['hinhAnhDauTien'] != null && order['hinhAnhDauTien'].toString().isNotEmpty)
+                                          Container(
+                                            margin: const EdgeInsets.only(right: 12),
+                                            child: ClipRRect(
+                                              borderRadius: BorderRadius.circular(8),
+                                              child: AppImageView(
+                                                path: order['hinhAnhDauTien'].toString(),
+                                                width: 50,
+                                                height: 50,
+                                                fit: BoxFit.cover,
+                                                placeholderAsset: 'assets/img/app_logo.png',
+                                              ),
+                                            ),
+                                          ),
+                                        Expanded(
+                                          child: Text(
+                                            order['danhSachMon']?.toString() ?? '',
+                                            style: TextStyle(color: TColor.secondaryText, fontSize: 12),
+                                            maxLines: 2,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ],
                                 ),

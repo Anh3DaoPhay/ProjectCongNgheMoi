@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:food_delivery/common/color_extension.dart';
-import 'package:food_delivery/common_widget/round_textfield.dart';
 
 import '../../../common/globs.dart';
 import '../../../common/service_call.dart';
-import '../../../common_widget/menu_item_row.dart';
+import '../../../common_widget/app_image_view.dart';
+import '../../../common_widget/recent_item_row.dart';
+import '../../../common_widget/round_textfield.dart';
 import '../more/my_order_view.dart';
 import 'item_details_view.dart';
 
@@ -21,6 +22,15 @@ class _MenuItemsViewState extends State<MenuItemsView> {
   late Future<List<Map<String, dynamic>>> itemsFuture;
   int _cartCount = 0;
   String _searchQuery = '';
+
+  // Thông tin gian hàng từ mObj
+  String get _storeName => widget.mObj['name']?.toString() ?? '';
+  String get _storeLocation => widget.mObj['type']?.toString() ?? '';
+  String get _storeOpenHours => widget.mObj['food_type']?.toString() ?? '';
+  String? get _storeBanner =>
+      widget.mObj['imageUrl']?.toString() ?? widget.mObj['bannerUrl']?.toString();
+  double? get _storeRating => (widget.mObj['avgRating'] as num?)?.toDouble();
+  int get _storeTotalReviews => (widget.mObj['totalReviews'] as num?)?.toInt() ?? 0;
 
   @override
   void initState() {
@@ -56,9 +66,8 @@ class _MenuItemsViewState extends State<MenuItemsView> {
   }
 
   Future<List<Map<String, dynamic>>> _loadItems() async {
-    // Lấy canteenId từ object gian hàng truyền vào
-    // canteenId có thể là 'canteenId' (nếu truyền từ dish) hoặc 'id' (nếu truyền từ gian hàng)
-    final canteenId = (widget.mObj['canteenId'] ?? widget.mObj['id'])?.toString() ?? '';
+    final canteenId =
+        (widget.mObj['canteenId'] ?? widget.mObj['id'])?.toString() ?? '';
     if (canteenId.isEmpty) return [];
 
     try {
@@ -72,17 +81,23 @@ class _MenuItemsViewState extends State<MenuItemsView> {
       return list.cast<Map>().map((item) {
         final map = Map<String, dynamic>.from(item);
         final price = map['giaTien'] ?? map['price'];
+        final diemDanhGia = (map['diemDanhGia'] as num?)?.toDouble() ?? 0.0;
+        final luotDanhGia = (map['luotDanhGia'] as num?)?.toInt() ?? 0;
+        final soLuongDaBan = (map['soLuongDaBan'] as num?)?.toInt() ?? 0;
         return {
-          'imageUrl'  : map['hinhAnh']?.toString() ?? map['imageUrl']?.toString(),
-          'name'      : map['tenMonAn']?.toString() ?? map['name']?.toString() ?? '',
-          'rate'      : price?.toString() ?? '0',
-          'rating'    : '',
-          'type'      : map['tenDanhMuc']?.toString() ?? map['categoryName']?.toString() ?? '',
-          'food_type' : widget.mObj['name']?.toString() ?? '',
-          'dishId'    : map['maMonAn'] ?? map['id'],
-          'canteenId' : map['maGianHang'] ?? map['canteenId'],
-          'price'     : price,
-          'description': map['moTa']?.toString() ?? map['description']?.toString() ?? '',
+          'imageUrl'     : map['hinhAnh']?.toString() ?? map['imageUrl']?.toString(),
+          'name'         : map['tenMonAn']?.toString() ?? map['name']?.toString() ?? '',
+          'rate'         : diemDanhGia > 0 ? diemDanhGia.toStringAsFixed(1) : '',
+          'rating'       : luotDanhGia > 0 ? '$luotDanhGia' : '',
+          'soLuongDaBan' : soLuongDaBan,
+          'type'         : map['tenDanhMuc']?.toString() ?? map['categoryName']?.toString() ?? '',
+          'food_type'    : _storeName,
+          'dishId'       : map['maMonAn'] ?? map['id'],
+          'id'           : map['maMonAn'] ?? map['id'],
+          'canteenId'    : map['maGianHang'] ?? map['canteenId'],
+          'price'        : price,
+          'description'  : map['moTa']?.toString() ?? map['description']?.toString() ?? '',
+          'canteenName'  : _storeName,
         };
       }).toList();
     } catch (e) {
@@ -91,36 +106,201 @@ class _MenuItemsViewState extends State<MenuItemsView> {
     }
   }
 
+  /// Widget ngôi sao cho header gian hàng
+  Widget _buildHeaderStars(double rating, int totalReviews) {
+    final full = rating.floor();
+    final half = (rating - full) >= 0.25 && (rating - full) < 0.75;
+    final empty = 5 - full - (half ? 1 : 0);
+
+    return Row(
+      children: [
+        ...List.generate(full, (_) => const Icon(Icons.star_rounded, color: Color(0xFFFFB800), size: 16)),
+        if (half) const Icon(Icons.star_half_rounded, color: Color(0xFFFFB800), size: 16),
+        ...List.generate(empty, (_) => const Icon(Icons.star_border_rounded, color: Color(0xFFFFB800), size: 16)),
+        const SizedBox(width: 6),
+        Text(
+          rating.toStringAsFixed(1),
+          style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700),
+        ),
+        const SizedBox(width: 4),
+        Text(
+          '($totalReviews đánh giá)',
+          style: TextStyle(color: Colors.white.withValues(alpha: 0.75), fontSize: 12),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final media = MediaQuery.of(context).size;
+
     return Scaffold(
-      body: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 20),
-          child: Column(
-            children: [
-              const SizedBox(height: 46),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Row(
-                  children: [
-                    IconButton(
-                      onPressed: () => Navigator.pop(context),
-                      icon: Image.asset("assets/img/btn_back.png",
-                          width: 20, height: 20),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        widget.mObj["name"]?.toString() ?? '',
-                        style: TextStyle(
-                            color: TColor.primaryText,
-                            fontSize: 20,
-                            fontWeight: FontWeight.w800),
+      backgroundColor: const Color(0xFFF8F8F8),
+      body: FutureBuilder<List<Map<String, dynamic>>>(
+        future: itemsFuture,
+        builder: (context, snapshot) {
+          final allItems = snapshot.data ?? [];
+          final query = _searchQuery.trim().toLowerCase();
+          final items = query.isEmpty
+              ? allItems
+              : allItems.where((item) {
+                  final name = item['name']?.toString().toLowerCase() ?? '';
+                  return name.contains(query);
+                }).toList();
+
+          return CustomScrollView(
+            slivers: [
+              // ─────────────── HEADER: Banner + Info Gian Hàng ───────────────
+              SliverAppBar(
+                expandedHeight: media.height * 0.32,
+                pinned: true,
+                backgroundColor: TColor.primary,
+                elevation: 0,
+                automaticallyImplyLeading: false,
+                flexibleSpace: FlexibleSpaceBar(
+                  collapseMode: CollapseMode.parallax,
+                  background: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      // Ảnh banner
+                      AppImageView(
+                        path: _storeBanner,
+                        width: double.infinity,
+                        height: double.infinity,
+                        fit: BoxFit.cover,
+                        placeholderAsset: 'assets/img/app_logo.png',
                       ),
+                      // Gradient overlay
+                      Container(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Colors.black.withValues(alpha: 0.35),
+                              Colors.black.withValues(alpha: 0.15),
+                              Colors.black.withValues(alpha: 0.75),
+                            ],
+                            stops: const [0.0, 0.45, 1.0],
+                          ),
+                        ),
+                      ),
+                      // Nội dung info gian hàng (dưới cùng)
+                      Positioned(
+                        bottom: 0,
+                        left: 0,
+                        right: 0,
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              // Tên gian hàng
+                              Text(
+                                _storeName,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.w800,
+                                  shadows: [
+                                    Shadow(color: Colors.black45, blurRadius: 6, offset: Offset(0, 2)),
+                                  ],
+                                ),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(height: 6),
+                              // Rating sao
+                              if (_storeRating != null && _storeRating! > 0)
+                                _buildHeaderStars(_storeRating!, _storeTotalReviews)
+                              else
+                                Row(
+                                  children: [
+                                    ...List.generate(5, (_) => const Icon(Icons.star_border_rounded, color: Color(0xFFFFB800), size: 15)),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      'Chưa có đánh giá',
+                                      style: TextStyle(
+                                        color: Colors.white.withValues(alpha: 0.75),
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              const SizedBox(height: 6),
+                              // Địa điểm + Giờ mở cửa
+                              if (_storeLocation.isNotEmpty || _storeOpenHours.isNotEmpty)
+                                Row(
+                                  children: [
+                                    if (_storeLocation.isNotEmpty) ...[
+                                      const Icon(Icons.location_on_rounded,
+                                          color: Colors.white70, size: 13),
+                                      const SizedBox(width: 3),
+                                      Flexible(
+                                        child: Text(
+                                          _storeLocation,
+                                          style: TextStyle(
+                                            color: Colors.white.withValues(alpha: 0.85),
+                                            fontSize: 12,
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                    ],
+                                    if (_storeLocation.isNotEmpty && _storeOpenHours.isNotEmpty)
+                                      const Text('  ·  ',
+                                          style: TextStyle(color: Colors.white54)),
+                                    if (_storeOpenHours.isNotEmpty) ...[
+                                      const Icon(Icons.access_time_rounded,
+                                          color: Colors.white70, size: 13),
+                                      const SizedBox(width: 3),
+                                      Text(
+                                        _storeOpenHours,
+                                        style: TextStyle(
+                                          color: Colors.white.withValues(alpha: 0.85),
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                // AppBar khi thu nhỏ (pinned)
+                title: Text(
+                  _storeName,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                // Nút Back
+                leading: IconButton(
+                  onPressed: () => Navigator.pop(context),
+                  icon: Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.3),
+                      shape: BoxShape.circle,
                     ),
-                    // Badge giỏ hàng
-                    Stack(
+                    child: const Icon(Icons.arrow_back_ios_new_rounded,
+                        color: Colors.white, size: 16),
+                  ),
+                ),
+                // Nút giỏ hàng
+                actions: [
+                  Padding(
+                    padding: const EdgeInsets.only(right: 12),
+                    child: Stack(
                       clipBehavior: Clip.none,
                       children: [
                         IconButton(
@@ -128,28 +308,33 @@ class _MenuItemsViewState extends State<MenuItemsView> {
                             await Navigator.push(
                               context,
                               MaterialPageRoute(
-                                  builder: (context) => const MyOrderView()),
+                                  builder: (_) => const MyOrderView()),
                             );
                             _loadCartCount();
                           },
-                          icon: Image.asset(
-                            "assets/img/shopping_cart.png",
-                            width: 25,
-                            height: 25,
+                          icon: Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withValues(alpha: 0.3),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(Icons.shopping_cart_rounded,
+                                color: Colors.white, size: 20),
                           ),
                         ),
                         if (_cartCount > 0)
                           Positioned(
-                            right: 4,
-                            top: 4,
+                            right: 6,
+                            top: 6,
                             child: Container(
-                              padding: const EdgeInsets.all(4),
+                              padding: const EdgeInsets.all(3),
                               decoration: BoxDecoration(
-                                color: TColor.primary,
+                                color: Colors.redAccent,
                                 shape: BoxShape.circle,
+                                border: Border.all(color: Colors.white, width: 1.5),
                               ),
-                              constraints: const BoxConstraints(
-                                  minWidth: 18, minHeight: 18),
+                              constraints:
+                                  const BoxConstraints(minWidth: 18, minHeight: 18),
                               child: Text(
                                 _cartCount > 99 ? '99+' : '$_cartCount',
                                 style: const TextStyle(
@@ -162,94 +347,130 @@ class _MenuItemsViewState extends State<MenuItemsView> {
                           ),
                       ],
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 20),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: RoundTextfield(
-                  hintText: "Tìm món ăn...",
-                  controller: txtSearch,
-                  left: Container(
-                    alignment: Alignment.center,
-                    width: 30,
-                    child: Image.asset(
-                      "assets/img/search.png",
-                      width: 20,
-                      height: 20,
+
+              // ─────────────── THANH TÌM KIẾM ───────────────
+              SliverToBoxAdapter(
+                child: Container(
+                  color: Colors.white,
+                  padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
+                  child: RoundTextfield(
+                    hintText: 'Tìm món ăn...',
+                    controller: txtSearch,
+                    left: Container(
+                      alignment: Alignment.center,
+                      width: 30,
+                      child: Image.asset(
+                        'assets/img/search.png',
+                        width: 20,
+                        height: 20,
+                      ),
                     ),
                   ),
                 ),
               ),
-              const SizedBox(height: 15),
-              FutureBuilder<List<Map<String, dynamic>>>(
-                future: itemsFuture,
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 32),
-                      child: Center(child: CircularProgressIndicator()),
-                    );
-                  }
 
-                  final allItems = snapshot.data ?? [];
-                  final query = _searchQuery.trim().toLowerCase();
-                  final items = query.isEmpty
-                      ? allItems
-                      : allItems.where((item) {
-                          final name = item['name']?.toString().toLowerCase() ?? '';
-                          return name.contains(query);
-                        }).toList();
-
-                  if (items.isEmpty) {
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 32),
-                      child: Center(
-                        child: Column(
-                          children: [
-                            Icon(Icons.restaurant_menu_outlined,
-                                color: TColor.secondaryText, size: 56),
-                            const SizedBox(height: 12),
-                            Text(
-                              allItems.isEmpty
-                                  ? 'Gian hàng chưa có món ăn nào.'
-                                  : 'Không tìm thấy món phù hợp.',
-                              style: TextStyle(color: TColor.secondaryText),
-                            ),
-                          ],
+              // ─────────────── TIÊU ĐỀ SỐ MÓN ───────────────
+              SliverToBoxAdapter(
+                child: Container(
+                  color: Colors.white,
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 4,
+                        height: 18,
+                        decoration: BoxDecoration(
+                          color: TColor.primary,
+                          borderRadius: BorderRadius.circular(2),
                         ),
                       ),
-                    );
-                  }
-
-                  return ListView.builder(
-                    physics: const NeverScrollableScrollPhysics(),
-                    shrinkWrap: true,
-                    padding: EdgeInsets.zero,
-                    itemCount: items.length,
-                    itemBuilder: ((context, index) {
-                      final mObj = items[index];
-                      return MenuItemRow(
-                        mObj: mObj,
-                        onTap: () async {
-                          await Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) =>
-                                  ItemDetailsView(dishObj: mObj),
-                            ),
-                          );
-                          _loadCartCount(); // refresh badge sau khi thêm món
-                        },
-                      );
-                    }),
-                  );
-                },
+                      const SizedBox(width: 8),
+                      Text(
+                        snapshot.connectionState == ConnectionState.waiting
+                            ? 'Đang tải thực đơn...'
+                            : query.isNotEmpty
+                                ? 'Tìm thấy ${items.length} món'
+                                : 'Thực đơn (${allItems.length} món)',
+                        style: TextStyle(
+                          color: TColor.primaryText,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
+
+              // ─────────────── DANH SÁCH MÓN ĂN ───────────────
+              if (snapshot.connectionState == ConnectionState.waiting)
+                const SliverFillRemaining(
+                  child: Center(child: CircularProgressIndicator()),
+                )
+              else if (items.isEmpty)
+                SliverFillRemaining(
+                  child: Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.restaurant_menu_outlined,
+                            color: TColor.secondaryText, size: 64),
+                        const SizedBox(height: 14),
+                        Text(
+                          allItems.isEmpty
+                              ? 'Gian hàng chưa có món ăn nào.'
+                              : 'Không tìm thấy món phù hợp.',
+                          style:
+                              TextStyle(color: TColor.secondaryText, fontSize: 14),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              else
+                SliverList(
+                  delegate: SliverChildBuilderDelegate(
+                    (context, index) {
+                      // Divider nhẹ giữa các item
+                      if (index.isOdd) {
+                        return Divider(
+                          height: 1,
+                          thickness: 1,
+                          indent: 20,
+                          endIndent: 20,
+                          color: Colors.grey.shade200,
+                        );
+                      }
+                      final itemIndex = index ~/ 2;
+                      final mObj = items[itemIndex];
+                      return Container(
+                        color: Colors.white,
+                        child: RecentItemRow(
+                          rObj: mObj,
+                          onTap: () async {
+                            await Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => ItemDetailsView(dishObj: mObj),
+                              ),
+                            );
+                            _loadCartCount();
+                          },
+                        ),
+                      );
+                    },
+                    childCount: items.length * 2 - 1,
+                  ),
+                ),
+
+              // Padding cuối
+              const SliverToBoxAdapter(child: SizedBox(height: 30)),
             ],
-          ),
-        ),
+          );
+        },
       ),
     );
   }

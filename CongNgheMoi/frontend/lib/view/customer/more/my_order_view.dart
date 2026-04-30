@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 
+import '../../../common/app_alert.dart';
 import '../../../common/color_extension.dart';
 import '../../../common/globs.dart';
 import '../../../common/service_call.dart';
+import '../../../common_widget/app_image_view.dart';
 import '../../../common_widget/round_button.dart';
 import '../menu/all_reviews_view.dart';
 import 'area_orders_view.dart';
@@ -47,6 +49,7 @@ class _MyOrderViewState extends State<MyOrderView> {
             'quantity': sl,
             'lineTotal': gia * sl,
             'canteenName': item['tenGianHang'] ?? '',
+            'imageUrl': item['hinhAnh'] ?? item['imageUrl'] ?? '',
           };
         }).toList();
 
@@ -88,8 +91,7 @@ class _MyOrderViewState extends State<MyOrderView> {
       await _refresh();
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(error.toString())));
+      AppAlert.show(context, message: error.toString(), type: 'error');
     } finally {
       if (mounted) setState(() => isRemoving = false);
     }
@@ -202,6 +204,17 @@ class _MyOrderViewState extends State<MyOrderView> {
                               ),
                               child: Row(
                                 children: [
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(10),
+                                    child: AppImageView(
+                                      path: item['imageUrl']?.toString() ?? '',
+                                      width: 60,
+                                      height: 60,
+                                      fit: BoxFit.cover,
+                                      placeholderAsset: 'assets/img/app_logo.png',
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
                                   Expanded(
                                     child: Column(
                                       crossAxisAlignment:
@@ -319,8 +332,8 @@ class _OrderHistoryViewState extends State<OrderHistoryView>
   @override
   void initState() {
     super.initState();
-    // Xác định tab ban đầu dựa trên initialFilter, mặc định là 1 (Đang ghép)
-    int initialIndex = 1;
+    // Xác định tab ban đầu dựa trên initialFilter, mặc định là 0 (Tất cả)
+    int initialIndex = 0;
     if (widget.initialFilter != null) {
       final idx =
           _tabs.indexWhere((t) => t.status == widget.initialFilter);
@@ -355,7 +368,7 @@ class _OrderHistoryViewState extends State<OrderHistoryView>
   }
 
   Future<void> _refresh() async {
-    setState(() => ordersFuture = _loadMyOrders());
+    setState(() { ordersFuture = _loadMyOrders(); });
     await ordersFuture;
   }
 
@@ -400,6 +413,31 @@ class _OrderHistoryViewState extends State<OrderHistoryView>
   Future<void> _cancelOrder(dynamic orderId) async {
     final id = int.tryParse(orderId?.toString() ?? '');
     if (id == null) return;
+
+    // Show confirmation dialog
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Hủy đơn hàng', style: TextStyle(fontWeight: FontWeight.w700)),
+        content: const Text('Bạn có chắc muốn hủy đơn hàng này không? Hành động này không thể hoàn tác.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Giữ lại', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Hủy đơn'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
     try {
       await ServiceCall.fetchPost(
         SVKey.svOrderMyCancel(id),
@@ -407,16 +445,59 @@ class _OrderHistoryViewState extends State<OrderHistoryView>
         body: {'reason': 'CUSTOMER_CANCELLED'},
       );
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('Đã hủy đơn hàng.'),
-            backgroundColor: Colors.green),
-      );
-      _refresh();
+      AppAlert.show(context, message: 'Đã hủy đơn hàng thành công.');
+      await _refresh();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(e.toString())));
+      AppAlert.show(context, message: e.toString(), type: 'error');
+    }
+  }
+
+  Future<void> _refundOrder(dynamic orderId) async {
+    final id = int.tryParse(orderId?.toString() ?? '');
+    if (id == null) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Yêu cầu hoàn tiền', style: TextStyle(fontWeight: FontWeight.w700)),
+        content: const Text('Bạn có chắc muốn hủy đơn và hoàn tiền không? Tiền sẽ được hoàn trả vào tài khoản thanh toán của bạn.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Hủy bỏ', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: TColor.primary, foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Xác nhận hoàn tiền'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      Globs.showHUD();
+      final res = await ServiceCall.fetchPost(
+        SVKey.svPaymentRefund,
+        isToken: true,
+        body: {'maDonHang': id},
+      );
+      Globs.hideHUD();
+      
+      if (res is Map && res['success'] == true) {
+        if (!mounted) return;
+        AppAlert.show(context, message: res['message']?.toString() ?? 'Đã gửi yêu cầu hoàn tiền.');
+        await _refresh();
+      }
+    } catch (e) {
+      Globs.hideHUD();
+      if (!mounted) return;
+      AppAlert.show(context, message: e.toString(), type: 'error');
     }
   }
 
@@ -510,6 +591,7 @@ class _OrderHistoryViewState extends State<OrderHistoryView>
                         statusLabel: _statusLabel,
                         statusColor: _statusColor,
                         onCancel: _cancelOrder,
+                        onRefund: _refundOrder,
                         onRefresh: _refresh,
                         onReview: (orderId, danhSachMon) {
                           Navigator.push(
@@ -549,6 +631,7 @@ class _OrderList extends StatelessWidget {
   final String Function(String?) statusLabel;
   final Color Function(String?) statusColor;
   final Future<void> Function(dynamic) onCancel;
+  final Future<void> Function(dynamic) onRefund;
   final Future<void> Function() onRefresh;
   final void Function(dynamic orderId, String? danhSachMon) onReview;
 
@@ -557,6 +640,7 @@ class _OrderList extends StatelessWidget {
     required this.statusLabel,
     required this.statusColor,
     required this.onCancel,
+    required this.onRefund,
     required this.onRefresh,
     required this.onReview,
   });
@@ -648,32 +732,58 @@ class _OrderList extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Địa chỉ
                       Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Icon(Icons.location_on_outlined,
-                              color: TColor.primary, size: 16),
-                          const SizedBox(width: 6),
+                          if (order['hinhAnhDauTien'] != null && order['hinhAnhDauTien'].toString().isNotEmpty)
+                            Container(
+                              margin: const EdgeInsets.only(right: 12),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: AppImageView(
+                                  path: order['hinhAnhDauTien'].toString(),
+                                  width: 50,
+                                  height: 50,
+                                  fit: BoxFit.cover,
+                                  placeholderAsset: 'assets/img/app_logo.png',
+                                ),
+                              ),
+                            ),
                           Expanded(
-                            child: Text(
-                              '${order['tenToaNha'] ?? ''} · P.${order['tenPhong'] ?? ''}',
-                              style: TextStyle(
-                                  color: TColor.primaryText,
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w700),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                // Địa chỉ
+                                Row(
+                                  children: [
+                                    Icon(Icons.location_on_outlined,
+                                        color: TColor.primary, size: 16),
+                                    const SizedBox(width: 6),
+                                    Expanded(
+                                      child: Text(
+                                        '${order['tenToaNha'] ?? ''} · P.${order['tenPhong'] ?? ''}',
+                                        style: TextStyle(
+                                            color: TColor.primaryText,
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w700),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                // Món ăn
+                                Text(
+                                  order['danhSachMon']?.toString() ?? '',
+                                  style: TextStyle(
+                                      color: TColor.secondaryText,
+                                      fontSize: 12),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
                             ),
                           ),
                         ],
-                      ),
-                      const SizedBox(height: 8),
-                      // Món ăn
-                      Text(
-                        order['danhSachMon']?.toString() ?? '',
-                        style: TextStyle(
-                            color: TColor.secondaryText,
-                            fontSize: 12),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
                       ),
                       const SizedBox(height: 8),
                       // Tổng tiền
@@ -689,25 +799,28 @@ class _OrderList extends StatelessWidget {
                                 fontWeight: FontWeight.w800),
                           ),
                           if (status == 'choGhepDon')
-                            TextButton(
-                              style: TextButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 14, vertical: 6),
-                                backgroundColor:
-                                    Colors.red.withValues(alpha: 0.08),
-                                shape: RoundedRectangleBorder(
-                                    borderRadius:
-                                        BorderRadius.circular(20)),
-                              ),
-                              onPressed: () => onCancel(maDon),
-                              child: Text(
-                                'Hủy đơn',
-                                style: TextStyle(
-                                    color: Colors.red.shade600,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w700),
-                              ),
-                            ),
+                            Builder(builder: (context) {
+                              final isPaid = order['trangThaiThanhToan'] == 'paid';
+                              return TextButton(
+                                style: TextButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 14, vertical: 6),
+                                  backgroundColor:
+                                      (isPaid ? TColor.primary : Colors.red).withValues(alpha: 0.08),
+                                  shape: RoundedRectangleBorder(
+                                      borderRadius:
+                                          BorderRadius.circular(20)),
+                                ),
+                                onPressed: () => isPaid ? onRefund(maDon) : onCancel(maDon),
+                                child: Text(
+                                  isPaid ? 'Hoàn tiền' : 'Hủy đơn',
+                                  style: TextStyle(
+                                      color: isPaid ? TColor.primary : Colors.red.shade600,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700),
+                                ),
+                              );
+                            }),
                           if (status == 'daGiao') ...[  
                             Builder(builder: (_) {
                               final tongMon = (order['tongMon'] as num?)?.toInt() ?? 0;
@@ -865,6 +978,160 @@ class _ReviewButton extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────
+// WIDGET: Danh sách đơn hàng trong khu vực (Dùng cho tab Khu vực)
+// ─────────────────────────────────────────────
+class AreaOrderListWidget extends StatefulWidget {
+  final int toaNha;
+  final String tenToaNha;
+
+  const AreaOrderListWidget({super.key, required this.toaNha, required this.tenToaNha});
+
+  @override
+  State<AreaOrderListWidget> createState() => _AreaOrderListWidgetState();
+}
+
+class _AreaOrderListWidgetState extends State<AreaOrderListWidget> {
+  List<Map<String, dynamic>> orders = [];
+  bool isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadOrders();
+  }
+
+  Future<void> _loadOrders() async {
+    if (widget.toaNha <= 0) {
+      if (mounted) setState(() => isLoading = false);
+      return;
+    }
+    try {
+      final response = await ServiceCall.fetchGet(
+        SVKey.svOrderAreaOrders,
+        queryParameters: {'maToaNha': widget.toaNha},
+        isToken: true,
+      );
+      if (response is Map && response['success'] == true) {
+        final data = response['data'] as List? ?? [];
+        if (mounted) {
+          setState(() {
+            orders = data.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
+            isLoading = false;
+          });
+        }
+      }
+    } catch (e) {
+      if (mounted) setState(() => isLoading = false);
+    }
+  }
+
+  String _statusLabel(String? status) {
+    switch (status) {
+      case 'choGhepDon':   return '⏳ Chờ ghép đơn';
+      case 'choXacNhan':   return '🤝 Đang ghép...';
+      case 'dangChuanBi':  return '👨‍🍳 Đang chuẩn bị';
+      case 'choGiaoHang':  return '✅ Sẵn sàng giao';
+      default:             return status ?? '';
+    }
+  }
+
+  Color _statusColor(String? status) {
+    switch (status) {
+      case 'choGhepDon':   return Colors.orange;
+      case 'choXacNhan':   return Colors.indigo;
+      case 'dangChuanBi':  return Colors.blue;
+      default:             return Colors.grey;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (isLoading) return const Center(child: CircularProgressIndicator());
+    
+    if (widget.toaNha <= 0 || orders.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.location_off_outlined, color: Colors.grey.shade300, size: 64),
+            const SizedBox(height: 12),
+            Text(
+              orders.isEmpty ? 'Chưa có đơn nào trong khu vực.' : 'Bạn chưa có đơn hàng nào để xác định khu vực.',
+              style: TextStyle(color: TColor.secondaryText, fontSize: 14),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: _loadOrders,
+      child: ListView.separated(
+        padding: const EdgeInsets.all(16),
+        itemCount: orders.length,
+        separatorBuilder: (_, __) => const SizedBox(height: 10),
+        itemBuilder: (context, index) {
+          final order = orders[index];
+          final status = order['trangThaiDonHang']?.toString();
+          int currentUserId = ServiceCall.userPayload['maTaiKhoan'] as int? ?? 0;
+          bool isMyOrder = order['maTaiKhoan'] == currentUserId;
+
+          return Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: isMyOrder ? Colors.green.withValues(alpha: 0.1) : Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: isMyOrder ? Colors.green.withValues(alpha: 0.3) : Colors.grey.shade200),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        (order['tenKhach']?.toString() ?? 'Khách hàng') + (isMyOrder ? ' (Đơn của bạn)' : ''),
+                        style: TextStyle(
+                          color: isMyOrder ? Colors.green.shade700 : TColor.primaryText,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: _statusColor(status).withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        _statusLabel(status),
+                        style: TextStyle(
+                          color: _statusColor(status),
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  order['danhSachMon']?.toString() ?? '',
+                  style: TextStyle(color: TColor.secondaryText, fontSize: 12),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          );
+        },
       ),
     );
   }

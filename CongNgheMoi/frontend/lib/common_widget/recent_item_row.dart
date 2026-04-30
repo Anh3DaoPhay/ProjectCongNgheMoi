@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 
+import '../common/app_alert.dart';
 import '../common/color_extension.dart';
+import '../common/globs.dart';
+import '../common/service_call.dart';
 import 'app_image_view.dart';
 
 class RecentItemRow extends StatelessWidget {
@@ -162,8 +165,8 @@ class RecentItemRow extends StatelessWidget {
                     // ─ Giá nổi bật (giống Shopee) ─
                     if (price != null)
                       Row(
-                        crossAxisAlignment: CrossAxisAlignment.baseline,
-                        textBaseline: TextBaseline.alphabetic,
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
                           Text(
                             _formatPrice(price),
@@ -172,6 +175,40 @@ class RecentItemRow extends StatelessWidget {
                               fontSize: 17,
                               fontWeight: FontWeight.w800,
                               letterSpacing: -0.3,
+                            ),
+                          ),
+                          InkWell(
+                            onTap: () async {
+                              try {
+                                final rawId = rObj['maMonAn'] ?? rObj['id'] ?? rObj['dishId'];
+                                final resolvedDishId = int.tryParse(rawId?.toString() ?? '');
+                                if (resolvedDishId != null && resolvedDishId > 0) {
+                                  await ServiceCall.fetchPost(
+                                    SVKey.svCartAdd,
+                                    isToken: true,
+                                    body: {'maMonAn': resolvedDishId, 'soLuong': 1},
+                                  );
+                                  if (context.mounted) {
+                                    AppAlert.show(context, message: 'Đã thêm ${rObj['name'] ?? 'món'} vào giỏ hàng!');
+                                  }
+                                }
+                              } catch (e) {
+                                if (context.mounted) {
+                                  AppAlert.show(context, message: e.toString(), type: 'error');
+                                }
+                              }
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.all(6),
+                              decoration: BoxDecoration(
+                                color: TColor.primary,
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                Icons.add_shopping_cart_rounded,
+                                color: Colors.white,
+                                size: 16,
+                              ),
                             ),
                           ),
                         ],

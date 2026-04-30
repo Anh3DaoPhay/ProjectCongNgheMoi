@@ -6,26 +6,53 @@ import 'package:food_delivery/common_widget/tab_button.dart';
 
 import '../home/home_view.dart';
 import '../more/my_order_view.dart';
-import '../more/more_view.dart';
+
+import '../more/invite_view.dart';
 import '../profile/profile_view.dart';
+import 'tab_cart_button.dart';
+import 'tab_invite_button.dart';
+import 'tab_more_drawer.dart';
 
 class MainTabView extends StatefulWidget {
-  const MainTabView({super.key});
+  final int initialTab;
+  const MainTabView({super.key, this.initialTab = 2});
 
   @override
   State<MainTabView> createState() => _MainTabViewState();
 }
 
 class _MainTabViewState extends State<MainTabView> {
-  int selctTab = 2;
-  PageStorageBucket storageBucket = PageStorageBucket();
-  Widget selectPageView = const HomeView();
+  late int selctTab;
+  final PageStorageBucket storageBucket = PageStorageBucket();
+  late Widget selectPageView;
   int _cartCount = 0;
 
   @override
   void initState() {
     super.initState();
+    selctTab = widget.initialTab;
+    selectPageView = _pageFor(selctTab);
     _loadCartCount();
+  }
+
+  Widget _pageFor(int index) {
+    switch (index) {
+      case 0: return const OrderHistoryView();
+      case 1: return const MyOrderView();
+      case 2: return const HomeView();
+      case 3: return const ProfileView();
+      case 4: return const InviteView();
+      default: return const HomeView();
+    }
+  }
+
+  void _switchTab(int index) {
+    if (selctTab != index) {
+      setState(() {
+        selctTab = index;
+        selectPageView = _pageFor(index);
+      });
+    }
   }
 
   Future<void> _loadCartCount() async {
@@ -34,160 +61,132 @@ class _MainTabViewState extends State<MainTabView> {
       if (res is Map && res['success'] == true) {
         final items = res['data'] as List? ?? [];
         final count = items.fold<int>(0, (sum, item) {
-          final sl = (item['soLuong'] as num?)?.toInt() ?? 0;
-          return sum + sl;
+          return sum + ((item['soLuong'] as num?)?.toInt() ?? 0);
         });
         if (mounted) setState(() => _cartCount = count);
       }
     } catch (_) {}
   }
 
+  void _openMoreDrawer() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => const TabMoreDrawer(),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFFF5F5F5),
       body: PageStorage(bucket: storageBucket, child: selectPageView),
-      backgroundColor: const Color(0xfff5f5f5),
-      floatingActionButtonLocation:
-          FloatingActionButtonLocation.miniCenterDocked,
-      floatingActionButton: SizedBox(
-        width: 60,
-        height: 60,
-        child: FloatingActionButton(
-          onPressed: () {
-            if (selctTab != 2) {
-              selctTab = 2;
-              selectPageView = const HomeView();
-            }
-            if (mounted) {
-              setState(() {});
-            }
-          },
-          shape: const CircleBorder(),
-          backgroundColor: selctTab == 2 ? TColor.primary : TColor.placeholder,
-          child: Image.asset(
-            "assets/img/tab_home.png",
-            width: 30,
-            height: 30,
-          ),
-        ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.miniCenterDocked,
+      floatingActionButton: _HomeFab(
+        isSelected: selctTab == 2,
+        onTap: () => _switchTab(2),
       ),
-      bottomNavigationBar: BottomAppBar(
-        surfaceTintColor: TColor.white,
-        shadowColor: Colors.black,
-        elevation: 1,
-        notchMargin: 12,
-        shape: const CircularNotchedRectangle(),
-        child: SafeArea(
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              TabButton(
-                  title: "Đơn hàng",
-                  icon: "assets/img/tab_menu.png",
-                  onTap: () {
-                    if (selctTab != 0) {
-                      selctTab = 0;
-                      selectPageView = const OrderHistoryView();
-                    }
-                    if (mounted) {
-                      setState(() {});
-                    }
-                  },
-                  isSelected: selctTab == 0),
-              // Tab Giỏ hàng với badge
-              GestureDetector(
-                onTap: () async {
-                  if (selctTab != 1) {
-                    selctTab = 1;
-                    selectPageView = const MyOrderView();
-                  }
-                  if (mounted) setState(() {});
-                  await Future.delayed(const Duration(milliseconds: 500));
-                  _loadCartCount();
-                },
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Stack(
-                      clipBehavior: Clip.none,
-                      children: [
-                        Image.asset(
-                          "assets/img/shopping_cart.png",
-                          width: 25,
-                          height: 25,
-                          color: selctTab == 1
-                              ? TColor.primary
-                              : TColor.placeholder,
-                        ),
-                        if (_cartCount > 0)
-                          Positioned(
-                            right: -6,
-                            top: -6,
-                            child: Container(
-                              padding: const EdgeInsets.all(3),
-                              decoration: BoxDecoration(
-                                color: TColor.primary,
-                                shape: BoxShape.circle,
-                              ),
-                              constraints: const BoxConstraints(
-                                  minWidth: 16, minHeight: 16),
-                              child: Text(
-                                _cartCount > 99 ? '99+' : '$_cartCount',
-                                style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 9,
-                                    fontWeight: FontWeight.w700),
-                                textAlign: TextAlign.center,
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      "Giỏ hàng",
-                      style: TextStyle(
-                        color: selctTab == 1
-                            ? TColor.primary
-                            : TColor.placeholder,
-                        fontSize: 10,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+      bottomNavigationBar: _BottomBar(
+        selectedTab: selctTab,
+        cartCount: _cartCount,
+        onTabTap: _switchTab,
+        onCartTap: () async {
+          _switchTab(1);
+          await Future.delayed(const Duration(milliseconds: 500));
+          _loadCartCount();
+        },
+        onMoreTap: _openMoreDrawer,
+        onInviteTap: () => _switchTab(4),
+      ),
+    );
+  }
+}
 
-              const SizedBox(width: 40, height: 40),
+// ─── Home FAB ────────────────────────────────────────────────────────────────
+class _HomeFab extends StatelessWidget {
+  final bool isSelected;
+  final VoidCallback onTap;
+  const _HomeFab({required this.isSelected, required this.onTap});
 
-              TabButton(
-                  title: "Profile",
-                  icon: "assets/img/tab_profile.png",
-                  onTap: () {
-                    if (selctTab != 3) {
-                      selctTab = 3;
-                      selectPageView = const ProfileView();
-                    }
-                    if (mounted) {
-                      setState(() {});
-                    }
-                  },
-                  isSelected: selctTab == 3),
-              TabButton(
-                  title: "More",
-                  icon: "assets/img/tab_more.png",
-                  onTap: () {
-                    if (selctTab != 4) {
-                      selctTab = 4;
-                      selectPageView = const MoreView();
-                    }
-                    if (mounted) {
-                      setState(() {});
-                    }
-                  },
-                  isSelected: selctTab == 4),
-            ],
-          ),
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 60,
+      height: 60,
+      child: FloatingActionButton(
+        onPressed: onTap,
+        shape: const CircleBorder(),
+        backgroundColor: isSelected ? TColor.primary : TColor.placeholder,
+        child: Image.asset('assets/img/tab_home.png', width: 30, height: 30),
+      ),
+    );
+  }
+}
+
+// ─── Bottom Navigation Bar ───────────────────────────────────────────────────
+class _BottomBar extends StatelessWidget {
+  final int selectedTab;
+  final int cartCount;
+  final ValueChanged<int> onTabTap;
+  final VoidCallback onCartTap;
+  final VoidCallback onMoreTap;
+  final VoidCallback onInviteTap;
+
+  const _BottomBar({
+    required this.selectedTab,
+    required this.cartCount,
+    required this.onTabTap,
+    required this.onCartTap,
+    required this.onMoreTap,
+    required this.onInviteTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return BottomAppBar(
+      surfaceTintColor: TColor.white,
+      shadowColor: Colors.black,
+      elevation: 1,
+      notchMargin: 12,
+      shape: const CircularNotchedRectangle(),
+      child: SafeArea(
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          children: [
+            // Đơn hàng
+            TabButton(
+              title: 'Đơn hàng',
+              icon: 'assets/img/tab_menu.png',
+              isSelected: selectedTab == 0,
+              onTap: () => onTabTap(0),
+            ),
+
+            // Giỏ hàng
+            TabCartButton(
+              isSelected: selectedTab == 1,
+              cartCount: cartCount,
+              onTap: onCartTap,
+            ),
+
+            // Khoảng trống cho FAB
+            const SizedBox(width: 40, height: 40),
+
+            // Profile
+            TabButton(
+              title: 'Profile',
+              icon: 'assets/img/tab_profile.png',
+              isSelected: selectedTab == 3,
+              onTap: () => onTabTap(3),
+            ),
+
+            // Invite (long press → More drawer)
+            TabInviteButton(
+              isSelected: selectedTab == 4,
+              onTap: onInviteTap,
+              onMoreTap: onMoreTap,
+            ),
+          ],
         ),
       ),
     );

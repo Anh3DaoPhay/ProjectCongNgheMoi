@@ -68,7 +68,8 @@ const OrderModel = {
             SELECT d.maDonHang, d.trangThaiDonHang, d.thoiGianDat, d.maTaiKhoan,
                    tn.tenToaNha, p.tenPhong,
                    tk.hoTen as tenKhach,
-                   GROUP_CONCAT(m.tenMonAn ORDER BY m.tenMonAn SEPARATOR ', ') as danhSachMon
+                   GROUP_CONCAT(m.tenMonAn ORDER BY m.tenMonAn SEPARATOR ', ') as danhSachMon,
+                   MAX(m.hinhAnh) as hinhAnhDauTien
             FROM donhang d
             JOIN taikhoan tk ON d.maTaiKhoan = tk.maTaiKhoan
             JOIN chitietdonhang ct ON d.maDonHang = ct.maDonHang
@@ -76,7 +77,7 @@ const OrderModel = {
             LEFT JOIN toanha tn ON d.maToaNha = tn.maToaNha
             LEFT JOIN phong p ON d.maPhong = p.maPhong
             WHERE d.maToaNha = ?
-              AND d.trangThaiDonHang IN ('choGhepDon', 'dangChuanBi')
+              AND d.trangThaiDonHang IN ('choGhepDon', 'choXacNhan', 'dangChuanBi')
             GROUP BY d.maDonHang
             ORDER BY d.thoiGianDat ASC
         `, [maToaNha]);
@@ -102,7 +103,8 @@ const OrderModel = {
                        FROM danhgia dg
                        JOIN chitietdonhang ct3 ON dg.maMonAn = ct3.maMonAn
                        WHERE dg.maDonHang = d.maDonHang AND ct3.maDonHang = d.maDonHang
-                   ) as soMonDaDanhGia
+                   ) as soMonDaDanhGia,
+                   MAX(m.hinhAnh) as hinhAnhDauTien
             FROM donhang d
             JOIN chitietdonhang ct ON d.maDonHang = ct.maDonHang
             JOIN monan m ON ct.maMonAn = m.maMonAn
@@ -174,10 +176,27 @@ const OrderModel = {
 
     cancelOrders: async (orderIds) => {
         if (!orderIds || orderIds.length === 0) return;
-        return db.query(
-            "UPDATE donhang SET trangThaiDonHang = 'daHuy' WHERE maDonHang IN (?)",
-            [orderIds]
-        );
+        return db.withTransaction(async (connection) => {
+            // Lấy danh sách món ăn để hoàn lại số lượng tồn kho
+            const [items] = await connection.query(
+                "SELECT maMonAn, soLuong FROM chitietdonhang WHERE maDonHang IN (?)",
+                [orderIds]
+            );
+            
+            // Hoàn lại số lượng tồn kho cho từng món
+            for (const item of items) {
+                await connection.execute(
+                    "UPDATE monan SET soLuongTon = soLuongTon + ? WHERE maMonAn = ?",
+                    [item.soLuong, item.maMonAn]
+                );
+            }
+            
+            // Cập nhật trạng thái đơn hàng thành đã hủy
+            await connection.query(
+                "UPDATE donhang SET trangThaiDonHang = 'daHuy' WHERE maDonHang IN (?)",
+                [orderIds]
+            );
+        });
     },
 
     groupOrdersToDelivery: async (maToaNha, orderIds) => {
@@ -211,9 +230,9 @@ const OrderModel = {
             LEFT JOIN toanha tn ON d.maToaNha = tn.maToaNha
             LEFT JOIN phong p ON d.maPhong = p.maPhong
             WHERE m.maGianHang = ?
-              AND d.trangThaiDonHang IN ('choXacNhan', 'dangChuanBi')
+              AND d.trangThaiDonHang IN ('choXacNhan', 'dangChuanBi', 'choGiaoHang', 'delivered', 'daGiao')
             GROUP BY d.maDonHang
-            ORDER BY d.trangThaiDonHang DESC, d.thoiGianDat ASC
+            ORDER BY FIELD(d.trangThaiDonHang, 'choXacNhan', 'dangChuanBi', 'choGiaoHang', 'delivered', 'daGiao'), d.thoiGianDat DESC
         `, [maGianHang]);
     },
 
@@ -223,6 +242,13 @@ const OrderModel = {
             "UPDATE donhang d JOIN chitietdonhang ct ON d.maDonHang = ct.maDonHang JOIN monan m ON ct.maMonAn = m.maMonAn SET d.trangThaiDonHang = 'dangChuanBi' WHERE d.maDonHang = ? AND m.maGianHang = ? AND d.trangThaiDonHang = 'choXacNhan'",
             [maDonHang, maGianHang]
         );
+        if (result.affectedRows > 0) {
+            // Đặt lại trangThaiMon = 'pending' cho các món của gian hàng này trong đơn
+            await db.query(
+                "UPDATE chitietdonhang ct JOIN monan m ON ct.maMonAn = m.maMonAn SET ct.trangThaiMon = 'pending' WHERE ct.maDonHang = ? AND m.maGianHang = ?",
+                [maDonHang, maGianHang]
+            );
+        }
         return result.affectedRows > 0;
     },
 
@@ -237,7 +263,7 @@ const OrderModel = {
             JOIN monan m ON ct.maMonAn = m.maMonAn
             WHERE m.maGianHang = ? 
               AND d.trangThaiDonHang = 'dangChuanBi'
-              AND ct.trangThaiMon = 'pending'
+              AND (ct.trangThaiMon = 'pending' OR ct.trangThaiMon IS NULL)
             GROUP BY m.maMonAn, m.tenMonAn, m.hinhAnh
             ORDER BY tongSoLuong DESC
         `, [maGianHang]);
@@ -285,6 +311,133 @@ const OrderModel = {
         `);
 
         return result.affectedRows > 0;
+    },
+
+    getStatistics: async (maGianHang, period, dateStr) => {
+        const targetDate = dateStr ? new Date(dateStr) : new Date();
+        
+        let startDate, endDate, prevStartDate, prevEndDate;
+        let groupByFormat;
+        
+        if (period === 'year') {
+            startDate = new Date(targetDate.getFullYear(), 0, 1);
+            endDate = new Date(targetDate.getFullYear(), 11, 31, 23, 59, 59);
+            prevStartDate = new Date(targetDate.getFullYear() - 1, 0, 1);
+            prevEndDate = new Date(targetDate.getFullYear() - 1, 11, 31, 23, 59, 59);
+            groupByFormat = '%Y-%m'; // group by month
+        } else if (period === 'month') {
+            startDate = new Date(targetDate.getFullYear(), targetDate.getMonth(), 1);
+            endDate = new Date(targetDate.getFullYear(), targetDate.getMonth() + 1, 0, 23, 59, 59);
+            prevStartDate = new Date(targetDate.getFullYear(), targetDate.getMonth() - 1, 1);
+            prevEndDate = new Date(targetDate.getFullYear(), targetDate.getMonth(), 0, 23, 59, 59);
+            groupByFormat = '%Y-%m-%d'; // group by day
+        } else {
+            // default to day
+            startDate = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate());
+            endDate = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate(), 23, 59, 59);
+            prevStartDate = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate() - 1);
+            prevEndDate = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate() - 1, 23, 59, 59);
+            groupByFormat = '%H'; // group by hour
+        }
+
+        const getStatsQuery = async (start, end) => {
+            const rows = await db.query(`
+                SELECT 
+                    DATE_FORMAT(d.thoiGianDat, ?) as label,
+                    COUNT(DISTINCT d.maDonHang) as orders,
+                    SUM(ct.soLuong * ct.giaTien) as revenue
+                FROM donhang d
+                JOIN chitietdonhang ct ON d.maDonHang = ct.maDonHang
+                JOIN monan m ON ct.maMonAn = m.maMonAn
+                WHERE m.maGianHang = ? 
+                  AND d.trangThaiDonHang IN ('choGiaoHang', 'delivered', 'daGiao')
+                  AND d.thoiGianDat BETWEEN ? AND ?
+                GROUP BY label
+                ORDER BY label ASC
+            `, [groupByFormat, maGianHang, start, end]);
+
+            let totalOrders = 0;
+            let totalRevenue = 0;
+            const chartData = rows.map(r => {
+                totalOrders += r.orders;
+                totalRevenue += Number(r.revenue);
+                return { label: r.label, revenue: Number(r.revenue), orders: r.orders };
+            });
+
+            return { totalOrders, totalRevenue, chartData };
+        };
+
+        const current = await getStatsQuery(startDate, endDate);
+        const previous = await getStatsQuery(prevStartDate, prevEndDate);
+
+        let revenueGrowth = 0;
+        if (previous.totalRevenue > 0) {
+            revenueGrowth = ((current.totalRevenue - previous.totalRevenue) / previous.totalRevenue) * 100;
+        } else if (current.totalRevenue > 0) {
+            revenueGrowth = 100;
+        }
+
+        // Get detailed order status counts
+        const statusRows = await db.query(`
+            SELECT 
+                d.trangThaiDonHang,
+                COUNT(*) as count
+            FROM donhang d
+            JOIN chitietdonhang ct ON d.maDonHang = ct.maDonHang
+            JOIN monan m ON ct.maMonAn = m.maMonAn
+            WHERE m.maGianHang = ?
+              AND d.thoiGianDat BETWEEN ? AND ?
+            GROUP BY d.trangThaiDonHang
+        `, [maGianHang, startDate, endDate]);
+
+        let successOrders = 0, cancelledOrders = 0;
+        for (const r of statusRows) {
+            if (['choGiaoHang', 'delivered', 'daGiao'].includes(r.trangThaiDonHang)) successOrders += Number(r.count);
+            if (r.trangThaiDonHang === 'daHuy') cancelledOrders += Number(r.count);
+        }
+
+        // Get top selling dishes
+        const topDishes = await db.query(`
+            SELECT 
+                m.tenMonAn as name,
+                m.hinhAnh as image,
+                SUM(ct.soLuong) as totalSold,
+                SUM(ct.soLuong * ct.giaTien) as totalRevenue
+            FROM chitietdonhang ct
+            JOIN monan m ON ct.maMonAn = m.maMonAn
+            JOIN donhang d ON ct.maDonHang = d.maDonHang
+            WHERE m.maGianHang = ?
+              AND d.trangThaiDonHang IN ('choGiaoHang', 'delivered', 'daGiao')
+              AND d.thoiGianDat BETWEEN ? AND ?
+            GROUP BY m.maMonAn, m.tenMonAn, m.hinhAnh
+            ORDER BY totalSold DESC
+            LIMIT 5
+        `, [maGianHang, startDate, endDate]);
+
+        return {
+            period: period || 'day',
+            startDate,
+            endDate,
+            current,
+            previous: {
+                totalOrders: previous.totalOrders,
+                totalRevenue: previous.totalRevenue,
+            },
+            performance: {
+                revenueGrowth: parseFloat(revenueGrowth.toFixed(2))
+            },
+            orderBreakdown: {
+                success: successOrders,
+                cancelled: cancelledOrders,
+                total: current.totalOrders,
+            },
+            topDishes: topDishes.map(d => ({
+                name: d.name,
+                image: d.image,
+                totalSold: Number(d.totalSold),
+                totalRevenue: Number(d.totalRevenue),
+            })),
+        };
     }
 };
 

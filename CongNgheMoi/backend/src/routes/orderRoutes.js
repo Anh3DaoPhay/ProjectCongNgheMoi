@@ -17,5 +17,6 @@ router.put('/:id/start', authorizeRole([2]), OrderController.startPreparing);   
 router.put('/:id/ready', authorizeRole([2]), OrderController.markOrderReady);     // Đánh dấu xong
 router.get('/staff-kds', authorizeRole([2]), OrderController.getStaffKDS);        // Lấy danh sách gom món KDS
 router.put('/staff-kds/:dishId/swipe', authorizeRole([2]), OrderController.swipeKDSItem); // Đánh dấu món đã nấu xong
+router.get('/staff-statistics', authorizeRole([2]), OrderController.getStatistics); // Thống kê
 
 module.exports = router;

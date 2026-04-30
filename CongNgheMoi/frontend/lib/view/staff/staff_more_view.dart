@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import '../../common/color_extension.dart';
 import '../../common/service_call.dart';
 import '../shared/login/welcome_view.dart';
+import 'staff_store_view.dart';
+import 'staff_voucher_view.dart';
 
 class StaffMoreView extends StatelessWidget {
   const StaffMoreView({super.key});
@@ -44,6 +46,14 @@ class StaffMoreView extends StatelessWidget {
             child: Column(
               children: [
                 _SettingsRow(
+                  icon: Icons.storefront_outlined,
+                  title: 'Store Information',
+                  onTap: () {
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => const StaffStoreView()));
+                  },
+                ),
+                const Divider(height: 1, indent: 56),
+                _SettingsRow(
                   icon: Icons.person_outline_rounded,
                   title: 'Profile Settings',
                   onTap: () {},
@@ -53,6 +63,15 @@ class StaffMoreView extends StatelessWidget {
                   icon: Icons.notifications_none_rounded,
                   title: 'Notification Preferences',
                   onTap: () {},
+                ),
+                const Divider(height: 1, indent: 56),
+                _SettingsRow(
+                  icon: Icons.local_offer_rounded,
+                  title: 'Quản lý Voucher',
+                  onTap: () {
+                    Navigator.push(context,
+                        MaterialPageRoute(builder: (_) => const StaffVoucherView()));
+                  },
                 ),
                 const Divider(height: 1, indent: 56),
                 _SettingsRow(

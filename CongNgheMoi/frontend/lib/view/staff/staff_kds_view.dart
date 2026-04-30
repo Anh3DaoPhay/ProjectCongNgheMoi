@@ -1,7 +1,10 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
+import '../../common/app_alert.dart';
 import '../../common/color_extension.dart';
 import '../../common/globs.dart';
 import '../../common/service_call.dart';
+import '../../common/event_bus.dart';
+import 'dart:async';
 
 class StaffKDSView extends StatefulWidget {
   const StaffKDSView({super.key});
@@ -13,15 +16,34 @@ class StaffKDSView extends StatefulWidget {
 class _StaffKDSViewState extends State<StaffKDSView> {
   List<Map<String, dynamic>> _kdsItems = [];
   bool _isLoading = true;
+  Timer? _timer;
+  StreamSubscription? _sub;
 
   @override
   void initState() {
     super.initState();
     _loadKDSData();
+    
+    _timer = Timer.periodic(const Duration(seconds: 10), (_) {
+      _loadKDSData(silent: true);
+    });
+
+    _sub = eventBus.stream.listen((event) {
+      if (event == 'order_status_changed') {
+        _loadKDSData(silent: true);
+      }
+    });
   }
 
-  Future<void> _loadKDSData() async {
-    setState(() => _isLoading = true);
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _sub?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _loadKDSData({bool silent = false}) async {
+    if (!silent) setState(() => _isLoading = true);
     try {
       final response = await ServiceCall.fetchGet(
         SVKey.svOrderStaffKDS,
@@ -43,7 +65,7 @@ class _StaffKDSViewState extends State<StaffKDSView> {
         );
       }
     } finally {
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted && !silent) setState(() => _isLoading = false);
     }
   }
 

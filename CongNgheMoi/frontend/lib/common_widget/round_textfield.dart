@@ -9,6 +9,7 @@ class RoundTextfield extends StatelessWidget {
   final bool obscureText;
   final Color? bgColor;
   final Widget? left;
+  final Widget? right;
 
   const RoundTextfield(
       {super.key,
@@ -17,6 +18,7 @@ class RoundTextfield extends StatelessWidget {
       this.keyboardType,
       this.bgColor,
       this.left,
+      this.right,
       this.obscureText = false});
 
   @override
@@ -52,6 +54,11 @@ class RoundTextfield extends StatelessWidget {
               ),
             ),
           ),
+          if (right != null)
+            Padding(
+              padding: const EdgeInsets.only(right: 4),
+              child: right!,
+            ),
         ],
       ),
     );

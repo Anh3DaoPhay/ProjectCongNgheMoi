@@ -106,11 +106,51 @@ const AuthController = {
         }
     },
 
-    // 4. ĐĂNG XUẤT
+    // 4. ĐĂNG NHẬP BẰNG MẠNG XÃ HỘI (Google / Facebook)
+    socialLogin: async (req, res, next) => {
+        try {
+            const { email, hoTen, provider, providerId, anhDaiDien } = req.body;
+
+            if (!email || !provider || !providerId) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Thiếu thông tin đăng nhập mạng xã hội!'
+                });
+            }
+
+            // Tìm hoặc tạo tài khoản
+            const user = await AuthModel.findOrCreateSocialAccount({
+                email, hoTen: hoTen || email.split('@')[0], provider, providerId, anhDaiDien
+            });
+
+            if (!user) {
+                return res.status(500).json({ success: false, message: 'Không thể xử lý tài khoản!' });
+            }
+
+            if (user.trangThai === 0) {
+                return res.status(403).json({ success: false, message: 'Tài khoản đã bị khóa!' });
+            }
+
+            // Tạo JWT
+            const payload = { maTaiKhoan: user.maTaiKhoan, maVaiTro: user.maVaiTro };
+            const token = jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' });
+
+            delete user.matKhau;
+
+            res.status(200).json({
+                success: true,
+                message: 'Đăng nhập thành công!',
+                token,
+                user
+            });
+        } catch (error) {
+            next(error);
+        }
+    },
+
+    // 5. ĐĂNG XUẤT
     logout: async (req, res, next) => {
         try {
-            // Với JWT, việc đăng xuất thường được xử lý ở Client (Xóa token khỏi bộ nhớ).
-            // Ở Backend, ta chỉ trả về success để Flutter biết mà xóa token nội bộ.
             res.status(200).json({
                 success: true,
                 message: 'Đăng xuất thành công! Client vui lòng xóa token.'

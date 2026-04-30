@@ -7,6 +7,7 @@ const { verifyToken, authorizeRole } = require('../middleware/authMiddleware');
 // Các route Public (Không cần token)
 router.post('/register', AuthController.register);
 router.post('/login', AuthController.login);
+router.post('/social-login', AuthController.socialLogin);   // Google / Facebook
 router.post('/forgot-password', AuthController.forgotPassword);
 router.post('/logout', AuthController.logout);
 

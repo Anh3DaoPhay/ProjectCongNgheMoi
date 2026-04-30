@@ -4,7 +4,7 @@ import 'staff_kds_view.dart';
 import 'staff_menu_view.dart';
 import 'staff_more_view.dart';
 import 'staff_orders_view.dart';
-import 'staff_store_view.dart';
+import 'staff_statistic_view.dart';
 
 class StaffMainTabView extends StatefulWidget {
   const StaffMainTabView({super.key});
@@ -16,16 +16,20 @@ class StaffMainTabView extends StatefulWidget {
 class _StaffMainTabViewState extends State<StaffMainTabView> {
   int _selectedTab = 0;
 
-  final List<Widget> _pages = const [
-    StaffOrdersView(),
-    StaffKDSView(),
-    StaffMenuView(),
-    StaffStoreView(),
-    StaffMoreView(),
-  ];
+  void _goToPrepare() {
+    setState(() => _selectedTab = 1);
+  }
 
   @override
   Widget build(BuildContext context) {
+    final List<Widget> _pages = [
+      StaffOrdersView(onNavigateToPrepare: _goToPrepare),
+      const StaffKDSView(),
+      const StaffMenuView(),
+      const StaffStatisticView(),
+      const StaffMoreView(),
+    ];
+
     return Scaffold(
       body: IndexedStack(
         index: _selectedTab,
@@ -69,9 +73,9 @@ class _StaffMainTabViewState extends State<StaffMainTabView> {
               label: 'Menu',
             ),
             BottomNavigationBarItem(
-              icon: Icon(Icons.storefront_outlined),
-              activeIcon: Icon(Icons.storefront_rounded),
-              label: 'Store',
+              icon: Icon(Icons.bar_chart_outlined),
+              activeIcon: Icon(Icons.bar_chart_rounded),
+              label: 'Static',
             ),
             BottomNavigationBarItem(
               icon: Icon(Icons.more_horiz_rounded),
