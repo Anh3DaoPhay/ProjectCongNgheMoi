@@ -13,17 +13,23 @@ const kRemoveVoucher = '__remove_voucher__';
 class CheckoutVoucherRow extends StatelessWidget {
   final Voucher? selectedVoucher;
   final double totalAmount;
-  final void Function(Object?) onResult; // Voucher | kRemoveVoucher | null
+  final String? canteenId;            // maGianHang đang đặt
+  final void Function(Object?) onResult;
 
   const CheckoutVoucherRow({
     super.key,
     required this.selectedVoucher,
     required this.totalAmount,
     required this.onResult,
+    this.canteenId,
   });
 
   Future<void> _openPicker(BuildContext context) async {
-    final myVouchers = VoucherService.instance.myVouchers;
+    // Chỉ lấy voucher của đúng gian hàng đang đặt
+    final allVouchers = VoucherService.instance.myVouchers;
+    final myVouchers = canteenId != null
+        ? allVouchers.where((v) => v.restaurantId == canteenId).toList()
+        : allVouchers;
     if (myVouchers.isEmpty) return;
 
     final result = await showModalBottomSheet<Object>(
@@ -41,7 +47,11 @@ class CheckoutVoucherRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final myVouchers = VoucherService.instance.myVouchers;
+    // Đếm voucher hợp lệ cho gian hàng này
+    final allVouchers = VoucherService.instance.myVouchers;
+    final myVouchers = canteenId != null
+        ? allVouchers.where((v) => v.restaurantId == canteenId).toList()
+        : allVouchers;
     if (myVouchers.isEmpty && selectedVoucher == null) return const SizedBox();
 
     return GestureDetector(

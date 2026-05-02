@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:food_delivery/common/globs.dart';
 import 'package:food_delivery/common/locator.dart';
 import 'package:food_delivery/view/customer/group/group_service.dart';
+import 'package:food_delivery/view/customer/voucher/voucher_service.dart';
 import 'package:http/http.dart' as http;
 
 typedef ResSuccess = Future<void> Function(Map<String, dynamic>);
@@ -245,6 +246,7 @@ class ServiceCall {
     Globs.udRemove(Globs.userPayload);
     userPayload = {};
     GroupService.instance.clearSession(); // xóa nhóm khỏi memory khi đăng xuất
+    VoucherService.instance.clearSession(); // xóa voucher cache khi đăng xuất
     navigationService.navigateTo("welcome");
   }
 

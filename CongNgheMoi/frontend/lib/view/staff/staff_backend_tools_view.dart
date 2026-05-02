@@ -26,6 +26,13 @@ class _StaffBackendToolsViewState extends State<StaffBackendToolsView> {
     dynamic promotionsResponse = [];
     dynamic statsResponse = [];
 
+    try {
+      promotionsResponse = await ServiceCall.fetchGet(
+        SVKey.svStaffPromotions,
+        isToken: true,
+      );
+    } catch (_) {}
+
     final categories = categoriesResponse is List
         ? categoriesResponse
             .whereType<Map>()

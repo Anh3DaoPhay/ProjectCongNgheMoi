@@ -283,10 +283,14 @@ class _CheckoutViewState extends State<CheckoutView> {
                 CheckoutCartItems(items: items, toDouble: _toDouble),
                 const SizedBox(height: 16),
 
-                // Voucher
+                // Voucher — chỉ hiển thị voucher của gian hàng trong giỏ
                 CheckoutVoucherRow(
                   selectedVoucher: _selectedVoucher,
                   totalAmount: total,
+                  // Lấy canteenId từ item đầu tiên trong giỏ
+                  canteenId: items.isNotEmpty
+                      ? items.first['canteenId']?.toString()
+                      : null,
                   onResult: (result) {
                     if (!mounted) return;
                     if (result is Voucher) {

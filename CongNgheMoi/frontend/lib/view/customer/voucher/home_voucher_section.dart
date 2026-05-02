@@ -1,6 +1,5 @@
 // lib/view/customer/voucher/home_voucher_section.dart
-// Section voucher nằm giữa phần "Gợi ý bữa trưa" trên home screen.
-
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:food_delivery/common/app_notification.dart';
 import 'package:food_delivery/common/color_extension.dart';
@@ -16,6 +15,40 @@ class HomeVoucherSection extends StatefulWidget {
 }
 
 class _HomeVoucherSectionState extends State<HomeVoucherSection> {
+  // Một khi đã load xong (kể cả thất bại), đánh dấu để không ẩn hoàn toàn
+  bool _doneFirstLoad = false;
+
+  @override
+  void initState() {
+    super.initState();
+    VoucherService.instance.addListener(_onServiceChange);
+    // Dùng postFrameCallback để tránh setState trong build phase
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (VoucherService.instance.availableVouchers.isEmpty) {
+        VoucherService.instance.loadAvailable();
+      }
+      if (VoucherService.instance.myVouchers.isEmpty) {
+        VoucherService.instance.loadMyVouchers();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    VoucherService.instance.removeListener(_onServiceChange);
+    super.dispose();
+  }
+
+  void _onServiceChange() {
+    if (!mounted) return;
+    // Khi load xong lần đầu (loading kết thúc), đánh dấu
+    if (!VoucherService.instance.isLoading) {
+      _doneFirstLoad = true;
+    }
+    setState(() {});
+  }
+
   List<Voucher> get _vouchers {
     final all = VoucherService.instance.availableVouchers;
     // Chưa lưu lên đầu, đã lưu xuống cuối
@@ -24,23 +57,65 @@ class _HomeVoucherSectionState extends State<HomeVoucherSection> {
     return [...uncollected, ...collected];
   }
 
-  void _collect(Voucher v) {
+  Future<void> _collect(Voucher v) async {
     if (VoucherService.instance.hasCollected(v.id)) {
       AppNotification.show(context,
           message: 'Bạn đã thu thập voucher này rồi!', type: NotifType.warning);
       return;
     }
-    VoucherService.instance.collectVoucher(v);
-    setState(() {});
-    AppNotification.show(context,
-        title: 'Thu thập thành công! 🎉',
-        message: 'Voucher "${v.title}" đã được lưu vào túi của bạn.',
-        type: NotifType.success);
+    final ok = await VoucherService.instance.collectVoucher(v);
+    if (!mounted) return;
+    if (ok) {
+      AppNotification.show(context,
+          title: 'Thu thập thành công! 🎉',
+          message: 'Voucher "${v.title}" đã được lưu vào túi của bạn.',
+          type: NotifType.success);
+    } else {
+      AppNotification.show(context,
+          message: 'Không thể lưu voucher. Vui lòng thử lại.',
+          type: NotifType.error);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_vouchers.isEmpty) return const SizedBox.shrink();
+    final svc       = VoucherService.instance;
+    final isLoading = svc.isLoading;
+    final errorMsg  = svc.error;
+    final vouchers  = _vouchers;
+
+    // Đang tải lần đầu → hiện shimmer
+    if (isLoading && vouchers.isEmpty) {
+      return _buildShimmer();
+    }
+
+    // DEBUG: hiện lỗi trực tiếp trên màn hình khi chưa có data
+    if (kDebugMode && errorMsg != null && vouchers.isEmpty) {
+      return Container(
+        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.red.shade50,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: Colors.red.shade200),
+        ),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const Text('⚠️ Voucher load error (debug only):',
+              style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red, fontSize: 12)),
+          const SizedBox(height: 4),
+          Text(errorMsg, style: const TextStyle(color: Colors.red, fontSize: 11)),
+          const SizedBox(height: 6),
+          TextButton(
+            onPressed: () => svc.loadAvailable(force: true),
+            child: const Text('Thử lại', style: TextStyle(fontSize: 12)),
+          ),
+        ]),
+      );
+    }
+
+    // Không có data (và không phải debug) → ẩn section
+    if (vouchers.isEmpty) return const SizedBox.shrink();
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -62,17 +137,47 @@ class _HomeVoucherSectionState extends State<HomeVoucherSection> {
           ]),
         ),
         const SizedBox(height: 8),
-        // Horizontal scroll list
         SizedBox(
           height: 145,
           child: ListView.builder(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 16),
-            itemCount: _vouchers.length,
+            itemCount: vouchers.length,
             itemBuilder: (_, i) => _VoucherCard(
-              voucher: _vouchers[i],
-              collected: VoucherService.instance.hasCollected(_vouchers[i].id),
-              onCollect: () => _collect(_vouchers[i]),
+              voucher: vouchers[i],
+              collected: VoucherService.instance.hasCollected(vouchers[i].id),
+              onCollect: () => _collect(vouchers[i]),
+            ),
+          ),
+        ),
+        const SizedBox(height: 10),
+      ],
+    );
+  }
+
+  Widget _buildShimmer() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 20),
+          child: Text('🎟️ Voucher hôm nay',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+        ),
+        const SizedBox(height: 8),
+        SizedBox(
+          height: 145,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            itemCount: 3,
+            itemBuilder: (_, __) => Container(
+              width: 230,
+              margin: const EdgeInsets.only(right: 12),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade200,
+                borderRadius: BorderRadius.circular(16),
+              ),
             ),
           ),
         ),
@@ -81,6 +186,7 @@ class _HomeVoucherSectionState extends State<HomeVoucherSection> {
     );
   }
 }
+
 
 // ─── Voucher Card (horizontal) ────────────────────────────────────────────────
 class _VoucherCard extends StatelessWidget {
@@ -147,7 +253,10 @@ class _VoucherCard extends StatelessWidget {
               Row(children: [
                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Còn ${voucher.remainingQuantity} lượt',
+                    Text(
+                        voucher.isUnlimited
+                            ? 'Không giới hạn lượt'
+                            : 'Còn ${voucher.remainingQuantity} lượt',
                         style: const TextStyle(color: Colors.white70, fontSize: 10)),
                     Text('HSD: ${voucher.daysLeft} ngày',
                         style: const TextStyle(color: Colors.white70, fontSize: 10)),

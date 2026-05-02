@@ -47,6 +47,41 @@ const ReviewController = {
         } catch (error) { next(error); }
     },
 
+    // GET /api/reviews/my  — lấy tất cả đánh giá của user hiện tại
+    getMyReviews: async (req, res, next) => {
+        try {
+            const maTaiKhoan = req.user.maTaiKhoan;
+            const { query } = require('../config/db');
+            const rows = await query(
+                `SELECT
+                    dg.maDanhGia,
+                    dg.soSao,
+                    dg.binhLuan,
+                    dg.hinhAnhDanhGia,
+                    dg.thoiGianDanhGia,
+                    m.maMonAn,
+                    m.tenMonAn,
+                    m.hinhAnh         AS anhMonAn,
+                    g.tenGianHang
+                 FROM danhgia dg
+                 JOIN monan   m  ON m.maMonAn    = dg.maMonAn
+                 JOIN gianhang g ON g.maGianHang = m.maGianHang
+                 JOIN donhang  d ON d.maDonHang  = dg.maDonHang
+                 WHERE d.maTaiKhoan = ?
+                 ORDER BY dg.thoiGianDanhGia DESC`,
+                [maTaiKhoan]
+            );
+            const parsed = rows.map(r => ({
+                ...r,
+                hinhAnhDanhGia: (() => {
+                    try { return r.hinhAnhDanhGia ? JSON.parse(r.hinhAnhDanhGia) : []; }
+                    catch { return []; }
+                })()
+            }));
+            res.status(200).json({ success: true, data: parsed });
+        } catch (error) { next(error); }
+    },
+
     // GET /api/reviews/order/:id
     getReviewByOrder: async (req, res, next) => {
         try {

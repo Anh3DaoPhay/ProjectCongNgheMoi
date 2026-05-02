@@ -1,4 +1,4 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -107,6 +107,14 @@ class SVKey {
       '${apiBaseUrl}customer/profile/password';
   static String get svCustomerProfileAvatar =>
       '${apiBaseUrl}customer/profile/avatar';
+  /// GET /api/customer/stats — thống kê đơn hàng + chi tiêu
+  static String get svCustomerStats    => '${apiBaseUrl}customer/stats';
+  /// GET /api/customer/wallet
+  static String get svCustomerWallet   => '${apiBaseUrl}customer/wallet';
+  /// POST /api/customer/wallet/deposit
+  static String get svWalletDeposit    => '${apiBaseUrl}customer/wallet/deposit';
+  /// POST /api/customer/wallet/withdraw
+  static String get svWalletWithdraw   => '${apiBaseUrl}customer/wallet/withdraw';
   static String get svCustomerCart => '${apiBaseUrl}cart';        // GET  /api/cart
   static String get svCartAdd     => '${apiBaseUrl}cart/add';     // POST /api/cart/add
   static String get svCartUpdate  => '${apiBaseUrl}cart/update';  // PUT  /api/cart/update
@@ -150,6 +158,8 @@ class SVKey {
   static String svReviewSubmit(dynamic orderId) => '${apiBaseUrl}reviews/order/$orderId';
   static String svReviewByDish(dynamic dishId) => '${apiBaseUrl}reviews/dish/$dishId';
   static String get svReviewUploadImage => '${apiBaseUrl}reviews/upload-image';
+  /// GET /api/reviews/my — tất cả đánh giá của user hiện tại
+  static String get svMyReviews => '${apiBaseUrl}reviews/my';
   static String get svAddress => '${apiBaseUrl}address';
 
   // â”€â”€ Payment / VNPay â”€â”€
@@ -157,6 +167,24 @@ class SVKey {
   static String get svPaymentRefund     => '${apiBaseUrl}payment/refund';
   static String svPaymentStatus(dynamic orderId) => '${apiBaseUrl}payment/status/$orderId';
   static String get svPaymentReturnUrl  => '$mainUrl/api/payment/vnpay-return';
+
+  // ── Promotions / Vouchers ──────────────────────────────────────────────────
+  /// GET /api/promotions  — tất cả voucher đang active
+  static String get svPromotions       => '${apiBaseUrl}promotions';
+  /// GET /api/promotions/my  — voucher đã lưu của user
+  static String get svMyVouchers       => '${apiBaseUrl}promotions/my';
+  /// POST /api/promotions/my/:id  — lưu voucher
+  static String svSaveVoucher(dynamic id) => '${apiBaseUrl}promotions/my/$id';
+  /// DELETE /api/promotions/my/:id  — xoá voucher đã lưu
+  static String svRemoveVoucher(dynamic id) => '${apiBaseUrl}promotions/my/$id';
+  /// GET  /api/promotions/staff  — staff lấy danh sách của cửa hàng mình
+  static String get svStaffPromotions  => '${apiBaseUrl}promotions/staff';
+  /// POST /api/promotions/staff  — staff tạo voucher mới
+  static String get svStaffCreatePromotion => '${apiBaseUrl}promotions/staff';
+  /// PUT  /api/promotions/staff/:id  — staff sửa voucher
+  static String svStaffUpdatePromotion(dynamic id) => '${apiBaseUrl}promotions/staff/$id';
+  /// DELETE /api/promotions/staff/:id  — staff xoá voucher
+  static String svStaffDeletePromotion(dynamic id) => '${apiBaseUrl}promotions/staff/$id';
 }
 
 class KKey {

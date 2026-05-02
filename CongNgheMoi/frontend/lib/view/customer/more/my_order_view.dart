@@ -76,7 +76,7 @@ class _MyOrderViewState extends State<MyOrderView> {
 
   Future<void> _refresh() async {
     final newFuture = _loadCart();
-    setState(() => cartFuture = newFuture);
+    setState(() { cartFuture = newFuture; });  // block {} → return void, not Future
     await newFuture;
   }
 
@@ -368,7 +368,7 @@ class _OrderHistoryViewState extends State<OrderHistoryView>
   }
 
   Future<void> _refresh() async {
-    setState(() { ordersFuture = _loadMyOrders(); });
+    setState(() { ordersFuture = _loadMyOrders(); });  // block → void
     await ordersFuture;
   }
 

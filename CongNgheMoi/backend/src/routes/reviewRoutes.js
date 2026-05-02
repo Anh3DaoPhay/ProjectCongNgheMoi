@@ -35,6 +35,9 @@ router.get('/dish/:dishId', ReviewController.getDishReviews);
 router.use(verifyToken);
 router.use(authorizeRole([1]));
 
+// Lấy tất cả đánh giá của chính mình
+router.get('/my', ReviewController.getMyReviews);
+
 // Upload ảnh đánh giá
 router.post('/upload-image', upload.single('image'), ReviewController.uploadReviewImage);
 

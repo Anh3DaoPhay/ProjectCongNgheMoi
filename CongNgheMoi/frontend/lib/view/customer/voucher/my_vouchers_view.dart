@@ -1,9 +1,8 @@
 // lib/view/customer/voucher/my_vouchers_view.dart
-// Màn hình "Voucher của tôi" — hiển thị từ More menu.
-
 import 'package:flutter/material.dart';
 import 'package:food_delivery/common/app_notification.dart';
 import 'package:food_delivery/common/color_extension.dart';
+import 'package:food_delivery/view/customer/menu/menu_items_view.dart';
 import 'voucher_model.dart';
 import 'voucher_service.dart';
 
@@ -22,29 +21,61 @@ class _MyVouchersViewState extends State<MyVouchersView>
   void initState() {
     super.initState();
     _tab = TabController(length: 2, vsync: this);
+    VoucherService.instance.addListener(_onChange);
+    // Reload khi vào màn hình này
+    VoucherService.instance.loadAvailable();
+    VoucherService.instance.loadMyVouchers();
   }
 
   @override
   void dispose() {
+    VoucherService.instance.removeListener(_onChange);
     _tab.dispose();
     super.dispose();
+  }
+
+  void _onChange() {
+    if (mounted) setState(() {});
   }
 
   List<Voucher> get _mine => VoucherService.instance.myVouchers;
   List<Voucher> get _available => VoucherService.instance.availableVouchers;
 
-  void _collect(Voucher v) {
+  Future<void> _collect(Voucher v) async {
     if (VoucherService.instance.hasCollected(v.id)) {
       AppNotification.show(context,
           message: 'Bạn đã thu thập voucher này!', type: NotifType.warning);
       return;
     }
-    VoucherService.instance.collectVoucher(v);
-    setState(() {});
-    AppNotification.show(context,
-        title: 'Thu thập thành công! 🎉',
-        message: 'Voucher đã được lưu vào túi.',
-        type: NotifType.success);
+    final ok = await VoucherService.instance.collectVoucher(v);
+    if (!mounted) return;
+    if (ok) {
+      AppNotification.show(context,
+          title: 'Thu thập thành công! 🎉',
+          message: 'Voucher đã được lưu vào túi.',
+          type: NotifType.success);
+    } else {
+      AppNotification.show(context,
+          message: 'Không thể lưu voucher. Vui lòng thử lại.',
+          type: NotifType.error);
+    }
+  }
+
+  /// Navigate tới menu gian hàng khi bấm "Dùng ngay"
+  void _navigateToMenu(BuildContext ctx, Voucher v) {
+    final canteenObj = <String, dynamic>{
+      'canteenId'  : v.restaurantId,
+      'id'         : v.restaurantId,
+      'name'       : v.restaurantName,
+      // Thông tin voucher để MenuItemsView hiển thị banner
+      'activeVoucherCode'    : v.code,
+      'activeVoucherDiscount': v.discountPercent,
+      'activeVoucherTitle'   : v.title,
+    };
+    Navigator.push(
+      ctx,
+      MaterialPageRoute(builder: (_) => MenuItemsView(mObj: canteenObj)),
+    );
   }
 
   @override
@@ -85,9 +116,7 @@ class _MyVouchersViewState extends State<MyVouchersView>
                   itemBuilder: (_, i) => _VoucherTile(
                     voucher: _mine[i],
                     showCollectBtn: false,
-                    onUse: () => AppNotification.show(context,
-                        message: 'Áp dụng mã "${_mine[i].code}" khi đặt hàng!',
-                        type: NotifType.info),
+                    onUse: () => _navigateToMenu(context, _mine[i]),
                   ),
                 ),
 
@@ -224,7 +253,9 @@ class _VoucherTile extends StatelessWidget {
               Row(children: [
                 Icon(Icons.timer_outlined, size: 12, color: Colors.grey.shade400),
                 const SizedBox(width: 3),
-                Text('Còn ${voucher.daysLeft} ngày · ${voucher.remainingQuantity} lượt',
+                Text(
+                    'Còn ${voucher.daysLeft} ngày · '
+                    '${voucher.isUnlimited ? 'Không giới hạn' : '${voucher.remainingQuantity} lượt'}',
                     style: const TextStyle(color: Colors.grey, fontSize: 10)),
               ]),
               const SizedBox(height: 8),

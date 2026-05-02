@@ -405,6 +405,68 @@ class _MenuItemsViewState extends State<MenuItemsView> {
                 ),
               ),
 
+              // ─────────────── VOUCHER BANNER (nếu có) ───────────────
+              if (widget.mObj['activeVoucherCode'] != null)
+                SliverToBoxAdapter(
+                  child: Container(
+                    margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFFFF6B35), Color(0xFFFF8C42)],
+                        begin: Alignment.centerLeft,
+                        end: Alignment.centerRight,
+                      ),
+                      borderRadius: BorderRadius.circular(14),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFFFF6B35).withValues(alpha: 0.3),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Row(children: [
+                      const Icon(Icons.local_offer_rounded, color: Colors.white, size: 22),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          Text(
+                            widget.mObj['activeVoucherTitle']?.toString() ?? '',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 13,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Dùng mã: ${widget.mObj['activeVoucherCode']} để giảm ${(widget.mObj['activeVoucherDiscount'] as num?)?.toInt() ?? 0}%',
+                            style: const TextStyle(color: Colors.white70, fontSize: 11),
+                          ),
+                        ]),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          '-${(widget.mObj['activeVoucherDiscount'] as num?)?.toInt() ?? 0}%',
+                          style: const TextStyle(
+                            color: Color(0xFFFF6B35),
+                            fontWeight: FontWeight.w900,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ),
+                    ]),
+                  ),
+                ),
+
               // ─────────────── DANH SÁCH MÓN ĂN ───────────────
               if (snapshot.connectionState == ConnectionState.waiting)
                 const SliverFillRemaining(

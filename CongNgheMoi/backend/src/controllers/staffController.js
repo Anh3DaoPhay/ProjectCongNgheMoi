@@ -199,6 +199,141 @@ async function uploadDishImage(req, res, next) {
   }
 }
 
+// ── Promotion CRUD (dùng bảng gianhang thực tế) ──────────────────────────────
+const { query } = require('../config/db');
+
+/** Lấy tất cả voucher của gian hàng mình */
+async function getPromotions(req, res, next) {
+  try {
+    const staffId = req.user?.maTaiKhoan;   // verifyToken sets req.user
+    if (!staffId) return res.status(401).json({ message: 'Chưa đăng nhập.' });
+    const storeRows = await query(
+      'SELECT maGianHang FROM gianhang WHERE maTaiKhoan = ? LIMIT 1',
+      [staffId]
+    );
+    if (storeRows.length === 0) return res.json([]);
+    const maGianHang = storeRows[0].maGianHang;
+
+    const rows = await query(`
+      SELECT
+        p.id,
+        p.maGianHang  AS canteenId,
+        g.tenGianHang AS canteenName,
+        p.maMonAn     AS dishId,
+        m.tenMonAn    AS dishName,
+        p.code,
+        p.title,
+        p.description,
+        p.discount_percent AS discountPercent,
+        p.banner_image_url AS bannerImageUrl,
+        p.max_uses         AS maxUses,
+        p.starts_at   AS startsAt,
+        p.ends_at     AS endsAt,
+        p.is_active   AS isActive,
+        p.created_at  AS createdAt
+      FROM promotions p
+      INNER JOIN gianhang g ON g.maGianHang = p.maGianHang
+      LEFT  JOIN monan    m ON m.maMonAn    = p.maMonAn
+      WHERE p.maGianHang = ?
+      ORDER BY p.created_at DESC
+    `, [maGianHang]);
+    res.json(rows);
+  } catch (error) { next(error); }
+}
+
+/** Tạo voucher mới */
+async function addPromotion(req, res, next) {
+  try {
+    const staffId = req.user?.maTaiKhoan;   // verifyToken sets req.user
+    if (!staffId) return res.status(401).json({ message: 'Chưa đăng nhập.' });
+    const storeRows = await query(
+      'SELECT maGianHang FROM gianhang WHERE maTaiKhoan = ? LIMIT 1',
+      [staffId]
+    );
+    if (storeRows.length === 0) {
+      return res.status(404).json({ message: 'Không tìm thấy gian hàng.' });
+    }
+    const maGianHang = storeRows[0].maGianHang;
+    const { title, code, discountPercent, endsAt, description, isActive,
+            maMonAn, maxUses } = req.body;
+
+    const result = await query(`
+      INSERT INTO promotions
+        (maGianHang, maMonAn, code, title, description, discount_percent, max_uses, ends_at, is_active)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `, [
+      maGianHang,
+      maMonAn != null ? Number(maMonAn) : null,
+      code ?? null,
+      title,
+      description ?? null,
+      discountPercent ?? 0,
+      maxUses != null ? Number(maxUses) : null,
+      endsAt,
+      isActive !== false ? 1 : 0,
+    ]);
+
+    res.status(201).json({ id: result.insertId, message: 'Tạo voucher thành công.' });
+  } catch (error) { next(error); }
+}
+
+/** Sửa voucher */
+async function editPromotion(req, res, next) {
+  try {
+    const staffId = req.user?.maTaiKhoan;   // verifyToken sets req.user
+    if (!staffId) return res.status(401).json({ message: 'Chưa đăng nhập.' });
+    const promotionId = Number(req.params.promotionId);
+    const storeRows = await query(
+      'SELECT maGianHang FROM gianhang WHERE maTaiKhoan = ? LIMIT 1',
+      [staffId]
+    );
+    if (storeRows.length === 0) return res.status(404).json({ message: 'Không tìm thấy gian hàng.' });
+    const maGianHang = storeRows[0].maGianHang;
+
+    const { title, code, discountPercent, endsAt, description, isActive,
+            maMonAn, maxUses } = req.body;
+    await query(`
+      UPDATE promotions
+      SET title = ?, code = ?, description = ?,
+          discount_percent = ?, max_uses = ?, ends_at = ?,
+          maMonAn = ?, is_active = ?
+      WHERE id = ? AND maGianHang = ?
+    `, [
+      title,
+      code ?? null,
+      description ?? null,
+      discountPercent ?? 0,
+      maxUses != null ? Number(maxUses) : null,
+      endsAt,
+      maMonAn != null ? Number(maMonAn) : null,
+      isActive !== false ? 1 : 0,
+      promotionId,
+      maGianHang,
+    ]);
+
+    res.json({ message: 'Cập nhật voucher thành công.' });
+  } catch (error) { next(error); }
+}
+
+/** Xoá voucher */
+async function removePromotion(req, res, next) {
+  try {
+    const staffId = req.user?.maTaiKhoan;   // verifyToken sets req.user
+    if (!staffId) return res.status(401).json({ message: 'Chưa đăng nhập.' });
+    const promotionId = Number(req.params.promotionId);
+    const storeRows = await query(
+      'SELECT maGianHang FROM gianhang WHERE maTaiKhoan = ? LIMIT 1',
+      [staffId]
+    );
+    if (storeRows.length === 0) return res.status(404).json({ message: 'Không tìm thấy gian hàng.' });
+    const maGianHang = storeRows[0].maGianHang;
+
+    await query('DELETE FROM promotions WHERE id = ? AND maGianHang = ?',
+      [promotionId, maGianHang]);
+    res.json({ message: 'Đã xoá voucher.' });
+  } catch (error) { next(error); }
+}
+
 module.exports = {
   getCategories,
   addCategory,
