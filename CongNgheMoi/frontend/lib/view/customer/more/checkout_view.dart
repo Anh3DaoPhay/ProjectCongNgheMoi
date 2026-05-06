@@ -124,12 +124,32 @@ class _CheckoutViewState extends State<CheckoutView> {
     return (cart['items'] as List? ?? []).whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
   }
 
-  double _discountedTotal(double total) {
+  /// Tính tổng tiền sau khi áp dụng voucher.
+  /// Voucher chỉ giảm giá phần tiền của các món thuộc đúng quán phát hành voucher.
+  double _discountedTotal(double total, List<Map<String, dynamic>> items) {
     if (_selectedVoucher == null) return total;
-    final discount = total * _selectedVoucher!.discountPercent / 100;
-    final maxD = _selectedVoucher!.maxDiscount;
-    final actual = maxD != null && discount > maxD ? maxD : discount;
-    return (total - actual).clamp(0, double.infinity);
+
+    final voucher = _selectedVoucher!;
+    final voucherCanteenId = voucher.restaurantId;
+
+    // Tính subtotal của các món thuộc quán có voucher
+    double canteenSubtotal = 0;
+    for (final item in items) {
+      final itemCanteenId = item['canteenId']?.toString() ?? '';
+      if (itemCanteenId == voucherCanteenId) {
+        canteenSubtotal += _toDouble(item['lineTotal']);
+      }
+    }
+
+    // Nếu không có món nào của quán này → không giảm gì
+    if (canteenSubtotal <= 0) return total;
+
+    // Tính số tiền được giảm (chỉ trên phần của quán đó)
+    final discount = canteenSubtotal * voucher.discountPercent / 100;
+    final maxD = voucher.maxDiscount;
+    final actualDiscount = maxD != null && discount > maxD ? maxD : discount;
+
+    return (total - actualDiscount).clamp(0, double.infinity);
   }
 
   Future<void> _submitOrder(Map<String, dynamic> cart) async {
@@ -312,7 +332,7 @@ class _CheckoutViewState extends State<CheckoutView> {
                           style: TextStyle(
                               color: TColor.secondaryText, fontSize: 13,
                               decoration: TextDecoration.lineThrough)),
-                    Text('${_discountedTotal(total).toStringAsFixed(0)} đ',
+                    Text('${_discountedTotal(total, items).toStringAsFixed(0)} đ',
                         style: TextStyle(color: TColor.primary, fontSize: 18, fontWeight: FontWeight.w800)),
                   ]),
                 ]),

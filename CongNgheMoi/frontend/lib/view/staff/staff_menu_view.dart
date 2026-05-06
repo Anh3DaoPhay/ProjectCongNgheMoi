@@ -1,4 +1,4 @@
-﻿import 'dart:io';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import '../../common/app_alert.dart';
 import 'package:image_picker/image_picker.dart';
@@ -6,6 +6,8 @@ import '../../common/color_extension.dart';
 import '../../common/globs.dart';
 import '../../common/service_call.dart';
 import 'staff_item_details_view.dart';
+import 'staff_more_view.dart';
+import 'staff_voucher_view.dart';
 
 class StaffMenuView extends StatefulWidget {
   const StaffMenuView({super.key});
@@ -634,7 +636,27 @@ class _StaffMenuViewState extends State<StaffMenuView>
         backgroundColor: Colors.white,
         elevation: 0,
         centerTitle: true,
-        bottom: TabBar(
+      actions: [
+        PopupMenuButton<String>(
+          icon: Icon(Icons.more_vert_rounded, color: TColor.primary),
+          onSelected: (val) {
+            if (val == 'store') {
+              Navigator.push(context, MaterialPageRoute(builder: (_) => const StaffMoreView()));
+            } else if (val == 'voucher') {
+              Navigator.push(context, MaterialPageRoute(builder: (_) => const StaffVoucherView()));
+            }
+          },
+          itemBuilder: (_) => [
+            const PopupMenuItem(value: 'store', child: Row(children: [
+              Icon(Icons.store_outlined, size: 18), SizedBox(width: 8), Text('Thông tin cửa hàng'),
+            ])),
+            const PopupMenuItem(value: 'voucher', child: Row(children: [
+              Icon(Icons.local_offer_outlined, size: 18), SizedBox(width: 8), Text('Quản lý Voucher'),
+            ])),
+          ],
+        ),
+      ],
+      bottom: TabBar(
           controller: _tabController,
           labelColor: TColor.primary,
           unselectedLabelColor: const Color(0xFF888888),

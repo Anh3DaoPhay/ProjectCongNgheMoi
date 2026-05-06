@@ -251,9 +251,7 @@ class _ProfileViewState extends State<ProfileView> {
           _tile(Icons.receipt_long_rounded, Colors.orange, 'Lịch sử mua hàng', 'Xem các đơn hàng đã đặt',
             () => Navigator.push(context, MaterialPageRoute(builder: (_) => const OrderHistoryView()))),
           _div(),
-          _tile(Icons.account_balance_wallet_rounded, const Color(0xFF00C853), 'Ví cá nhân', 'Nạp, rút tiền qua ngân hàng',
-            () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PersonalWalletView()))),
-          _div(),
+
           _tile(Icons.star_rounded, const Color(0xFFFFC107), 'Đánh giá của tôi', 'Xem các món đã bình luận',
             () => Navigator.push(context, MaterialPageRoute(builder: (_) => const MyReviewsView()))),
         ]),

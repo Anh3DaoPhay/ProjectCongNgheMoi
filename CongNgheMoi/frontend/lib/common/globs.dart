@@ -185,6 +185,30 @@ class SVKey {
   static String svStaffUpdatePromotion(dynamic id) => '${apiBaseUrl}promotions/staff/$id';
   /// DELETE /api/promotions/staff/:id  — staff xoá voucher
   static String svStaffDeletePromotion(dynamic id) => '${apiBaseUrl}promotions/staff/$id';
+
+  // ── Admin APIs (role = 3) ─────────────────────────────────────────────────
+  static String get svAdminDashboard     => '${apiBaseUrl}admin/dashboard';
+  static String get svAdminStores        => '${apiBaseUrl}admin/stores';
+  static String svAdminUpdateStore(dynamic id) => '${apiBaseUrl}admin/stores/$id';
+  static String get svAdminUsers         => '${apiBaseUrl}admin/users';
+  static String svAdminUpdateUser(dynamic id) => '${apiBaseUrl}admin/users/$id';
+  static String get svAdminVouchers      => '${apiBaseUrl}admin/vouchers';
+  static String svAdminUpdateVoucher(dynamic id) => '${apiBaseUrl}admin/vouchers/$id';
+  static String svAdminDeleteVoucher(dynamic id) => '${apiBaseUrl}admin/vouchers/$id';
+
+  // ── Delivery Trip APIs (Tab Ship) ─────────────────────────────────────────
+  static String get svStaffReadyItems    => '${apiBaseUrl}orders/staff-ready-items';
+  static String get svStaffStartTrip     => '${apiBaseUrl}orders/staff-start-trip';
+  static String svStaffCompleteTrip(dynamic tripId) => '${apiBaseUrl}orders/staff-complete-trip/$tripId';
+  static String get svStaffActiveTrip    => '${apiBaseUrl}orders/staff-active-trip';
+
+  // ── Groups APIs ───────────────────────────────────────────────────────────
+  static String get svGroupsCreate       => '${apiBaseUrl}groups/create';
+  static String get svMyGroups           => '${apiBaseUrl}groups/my-groups';
+  static String get svGroupJoin          => '${apiBaseUrl}groups/join';
+  static String get svGroupLeave         => '${apiBaseUrl}groups/leave';
+  static String get svGroupRemoveMember  => '${apiBaseUrl}groups/remove-member';
+  static String get svGroupDisband       => '${apiBaseUrl}groups/disband';
 }
 
 class KKey {

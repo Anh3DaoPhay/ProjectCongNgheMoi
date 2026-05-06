@@ -156,7 +156,7 @@ class _BottomBar extends StatelessWidget {
           children: [
             // Đơn hàng
             TabButton(
-              title: 'Đơn hàng',
+              title: 'Orders',
               icon: 'assets/img/tab_menu.png',
               isSelected: selectedTab == 0,
               onTap: () => onTabTap(0),

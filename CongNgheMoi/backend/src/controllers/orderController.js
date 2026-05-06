@@ -196,7 +196,7 @@ const OrderController = {
     getStatistics: async (req, res, next) => {
         try {
             console.log('GET STATISTICS CALLED FOR:', req.user.maTaiKhoan, req.query);
-            const { period, date } = req.query; // period: day, month, year. date: YYYY-MM-DD
+            const { period, date } = req.query;
             const db = require('../config/db');
             const rows = await db.query(
                 'SELECT maGianHang FROM gianhang WHERE maTaiKhoan = ?',
@@ -212,8 +212,177 @@ const OrderController = {
         } catch (error) {
             next(error);
         }
-    }
+    },
+
+    // ══════════════════════════════════════════════════════════════════
+    // DELIVERY TRIP (Tab Ship)
+    // ══════════════════════════════════════════════════════════════════
+
+    /** GET /api/orders/staff-ready-items — Lấy danh sách món đang ready chờ giao */
+    getReadyItems: async (req, res, next) => {
+        try {
+            const db = require('../config/db');
+            const rows = await db.query('SELECT maGianHang FROM gianhang WHERE maTaiKhoan = ?', [req.user.maTaiKhoan]);
+            if (!rows[0]) return res.status(404).json({ success: false, message: 'Không tìm thấy gian hàng.' });
+            const maGianHang = rows[0].maGianHang;
+
+            const items = await db.query(`
+                SELECT ct.maChiTiet, ct.maMonAn, ct.maDonHang, ct.trangThaiMon,
+                       m.tenMonAn, m.hinhAnh,
+                       d.maToaNha, d.maPhong,
+                       tn.tenToaNha, p.tenPhong,
+                       tk.hoTen AS tenKhach
+                FROM chitietdonhang ct
+                JOIN monan m ON ct.maMonAn = m.maMonAn
+                JOIN donhang d ON ct.maDonHang = d.maDonHang
+                JOIN taikhoan tk ON d.maTaiKhoan = tk.maTaiKhoan
+                LEFT JOIN toanha tn ON d.maToaNha = tn.maToaNha
+                LEFT JOIN phong p ON d.maPhong = p.maPhong
+                WHERE m.maGianHang = ? AND ct.trangThaiMon = 'ready'
+                ORDER BY tn.tenToaNha, p.tenPhong
+            `, [maGianHang]);
+
+            res.json({ success: true, data: items });
+        } catch (error) { next(error); }
+    },
+
+    /** POST /api/orders/staff-start-trip — Gom tất cả món ready thành 1 chuyến giao */
+    startDeliveryTrip: async (req, res, next) => {
+        try {
+            const db = require('../config/db');
+            const rows = await db.query('SELECT maGianHang FROM gianhang WHERE maTaiKhoan = ?', [req.user.maTaiKhoan]);
+            if (!rows[0]) return res.status(404).json({ success: false, message: 'Không tìm thấy gian hàng.' });
+            const maGianHang = rows[0].maGianHang;
+
+            // Lấy tất cả maChiTiet đang ready
+            const readyItems = await db.query(`
+                SELECT ct.maChiTiet, ct.maDonHang
+                FROM chitietdonhang ct
+                JOIN monan m ON ct.maMonAn = m.maMonAn
+                WHERE m.maGianHang = ? AND ct.trangThaiMon = 'ready'
+            `, [maGianHang]);
+
+            if (readyItems.length === 0)
+                return res.status(400).json({ success: false, message: 'Không có món nào đang chờ giao.' });
+
+            // Tạo chuyến giao mới trong nhomgiaohang
+            const [tripResult] = await db.query(
+                `INSERT INTO nhomgiaohang (maToaNha, thoiGianTaoNhom, trangThaiNhom) VALUES (?, NOW(), 'dangGiao')`,
+                [null]
+            );
+            const maNhomGiaoHang = tripResult.insertId;
+
+            // Cập nhật trangThaiMon = 'delivering' + gán maNhomGiaoHang vào chitietdonhang
+            const chiTietIds = readyItems.map(r => r.maChiTiet);
+            await db.query(
+                `UPDATE chitietdonhang SET trangThaiMon = 'delivering', maNhomGiaoHang = ? WHERE maChiTiet IN (?)`,
+                [maNhomGiaoHang, chiTietIds]
+            );
+
+            // Đồng bộ trạng thái donhang: nếu có món đang delivering → dangGiao
+            const donHangIds = [...new Set(readyItems.map(r => r.maDonHang))];
+            if (donHangIds.length > 0) {
+                await db.query(
+                    `UPDATE donhang SET trangThaiDonHang = 'dangGiao'
+                     WHERE maDonHang IN (?) AND trangThaiDonHang NOT IN ('daGiao', 'daHuy')`,
+                    [donHangIds]
+                );
+            }
+
+            res.json({ success: true, message: `Đã bắt đầu chuyến giao với ${readyItems.length} phần ăn!`, data: { maNhomGiaoHang, soMon: readyItems.length } });
+        } catch (error) { next(error); }
+    },
+
+    /** PUT /api/orders/staff-complete-trip/:tripId — Hoàn tất chuyến giao */
+    completeTrip: async (req, res, next) => {
+        try {
+            const maNhomGiaoHang = Number(req.params.tripId);
+            const db = require('../config/db');
+
+            // Lấy danh sách maChiTiet và maDonHang trong chuyến này
+            const items = await db.query(
+                `SELECT maChiTiet, maDonHang FROM chitietdonhang WHERE maNhomGiaoHang = ? AND trangThaiMon = 'delivering'`,
+                [maNhomGiaoHang]
+            );
+
+            if (items.length === 0)
+                return res.status(400).json({ success: false, message: 'Chuyến không tồn tại hoặc đã hoàn tất.' });
+
+            const chiTietIds = items.map(r => r.maChiTiet);
+            const donHangIds = [...new Set(items.map(r => r.maDonHang))];
+
+            // Đánh dấu các món là delivered
+            await db.query(
+                `UPDATE chitietdonhang SET trangThaiMon = 'delivered' WHERE maChiTiet IN (?)`,
+                [chiTietIds]
+            );
+
+            // Đồng bộ donhang: nếu TẤT CẢ món của đơn đều delivered → daGiao
+            for (const maDonHang of donHangIds) {
+                const [check] = await db.query(
+                    `SELECT COUNT(*) AS chua_xong FROM chitietdonhang
+                     WHERE maDonHang = ? AND trangThaiMon NOT IN ('delivered', 'cancelled')`,
+                    [maDonHang]
+                );
+                if ((check[0]?.chua_xong ?? check?.chua_xong ?? 0) == 0) {
+                    await db.query(
+                        `UPDATE donhang SET trangThaiDonHang = 'daGiao' WHERE maDonHang = ?`,
+                        [maDonHang]
+                    );
+                }
+            }
+
+            // Đóng chuyến
+            await db.query(`UPDATE nhomgiaohang SET trangThaiNhom = 'daHoanThanh' WHERE maNhomGiaoHang = ?`, [maNhomGiaoHang]);
+
+            res.json({ success: true, message: 'Hoàn tất chuyến giao hàng! 🎉' });
+        } catch (error) { next(error); }
+    },
+
+    /** GET /api/orders/staff-active-trip — Chuyến đang giao hiện tại */
+    getActiveTrip: async (req, res, next) => {
+        try {
+            const db = require('../config/db');
+            const rows = await db.query('SELECT maGianHang FROM gianhang WHERE maTaiKhoan = ?', [req.user.maTaiKhoan]);
+            if (!rows[0]) return res.status(404).json({ success: false, message: 'Không tìm thấy gian hàng.' });
+            const maGianHang = rows[0].maGianHang;
+
+            // Tìm chuyến đang giao có chứa món của gian hàng này
+            const trips = await db.query(`
+                SELECT DISTINCT ct.maNhomGiaoHang
+                FROM chitietdonhang ct
+                JOIN monan m ON ct.maMonAn = m.maMonAn
+                JOIN nhomgiaohang ng ON ct.maNhomGiaoHang = ng.maNhomGiaoHang
+                WHERE m.maGianHang = ? AND ct.trangThaiMon = 'delivering'
+                  AND ng.trangThaiNhom = 'dangGiao'
+                LIMIT 1
+            `, [maGianHang]);
+
+            if (trips.length === 0)
+                return res.json({ success: true, data: null });
+
+            const maNhomGiaoHang = trips[0].maNhomGiaoHang;
+
+            const items = await db.query(`
+                SELECT ct.maChiTiet, ct.maDonHang, ct.trangThaiMon,
+                       m.tenMonAn, m.hinhAnh,
+                       tn.tenToaNha, p.tenPhong,
+                       tk.hoTen AS tenKhach
+                FROM chitietdonhang ct
+                JOIN monan m ON ct.maMonAn = m.maMonAn
+                JOIN donhang d ON ct.maDonHang = d.maDonHang
+                JOIN taikhoan tk ON d.maTaiKhoan = tk.maTaiKhoan
+                LEFT JOIN toanha tn ON d.maToaNha = tn.maToaNha
+                LEFT JOIN phong p ON d.maPhong = p.maPhong
+                WHERE ct.maNhomGiaoHang = ? AND m.maGianHang = ?
+                ORDER BY tn.tenToaNha, p.tenPhong
+            `, [maNhomGiaoHang, maGianHang]);
+
+            res.json({ success: true, data: { maNhomGiaoHang, items } });
+        } catch (error) { next(error); }
+    },
 };
 
 module.exports = OrderController;
+
 

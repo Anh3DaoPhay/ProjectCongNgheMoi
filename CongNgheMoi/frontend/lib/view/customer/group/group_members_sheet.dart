@@ -31,7 +31,7 @@ class GroupMembersSheet extends StatelessWidget {
   Widget build(BuildContext context) {
     // Chủ nhóm + thành viên
     final ownerEntry = _OwnerEntry(ownerId: group.ownerId, myId: myId);
-    final memberList = group.members;
+    final memberList = group.members.where((m) => m.userId != group.ownerId).toList();
     final total = (group.ownerId.isNotEmpty ? 1 : 0) + memberList.length;
 
     return Container(

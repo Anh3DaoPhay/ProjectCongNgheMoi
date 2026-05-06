@@ -4,6 +4,7 @@ import 'staff_kds_view.dart';
 import 'staff_menu_view.dart';
 import 'staff_more_view.dart';
 import 'staff_orders_view.dart';
+import 'staff_ship_view.dart';
 import 'staff_statistic_view.dart';
 
 class StaffMainTabView extends StatefulWidget {
@@ -27,7 +28,7 @@ class _StaffMainTabViewState extends State<StaffMainTabView> {
       const StaffKDSView(),
       const StaffMenuView(),
       const StaffStatisticView(),
-      const StaffMoreView(),
+      const StaffShipView(),   // ← Tab Ship thay thế Tab More
     ];
 
     return Scaffold(
@@ -78,9 +79,9 @@ class _StaffMainTabViewState extends State<StaffMainTabView> {
               label: 'Static',
             ),
             BottomNavigationBarItem(
-              icon: Icon(Icons.more_horiz_rounded),
-              activeIcon: Icon(Icons.more_horiz_rounded),
-              label: 'More',
+              icon: Icon(Icons.delivery_dining_outlined),
+              activeIcon: Icon(Icons.delivery_dining_rounded),
+              label: 'Ship',   // ← Đổi "More" → "Ship"
             ),
           ],
         ),

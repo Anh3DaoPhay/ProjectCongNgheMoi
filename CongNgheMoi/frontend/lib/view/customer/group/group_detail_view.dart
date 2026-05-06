@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:food_delivery/common/app_notification.dart';
 import 'package:food_delivery/common/color_extension.dart';
+import 'package:food_delivery/common/globs.dart';
 import 'package:food_delivery/common/service_call.dart';
 import 'chat_service.dart';
-import 'group_budget_tab.dart';
 import 'group_chat_tab.dart';
 import 'group_members_sheet.dart';
 import 'group_model.dart';
@@ -19,10 +19,8 @@ class GroupDetailView extends StatefulWidget {
   State<GroupDetailView> createState() => _GroupDetailViewState();
 }
 
-class _GroupDetailViewState extends State<GroupDetailView>
-    with SingleTickerProviderStateMixin {
+class _GroupDetailViewState extends State<GroupDetailView> {
   late GroupModel _group;
-  late TabController _tabCtrl;
   final List<GroupMessage> _messages = [];
   bool _isLoadingChat = true;
 
@@ -51,7 +49,6 @@ class _GroupDetailViewState extends State<GroupDetailView>
   void initState() {
     super.initState();
     _group = widget.group;
-    _tabCtrl = TabController(length: 2, vsync: this);
     // Lưu ID/tên ngay khi init — tránh thay đổi giữa các async gaps
     final p = Map<String, dynamic>.from(ServiceCall.userPayload);
     _myId = _resolveId(p);
@@ -95,7 +92,6 @@ class _GroupDetailViewState extends State<GroupDetailView>
 
   @override
   void dispose() {
-    _tabCtrl.dispose();
     super.dispose();
   }
 
@@ -134,10 +130,13 @@ class _GroupDetailViewState extends State<GroupDetailView>
           TextButton(onPressed: () => Navigator.pop(ctx),
               child: const Text('Đóng', style: TextStyle(color: Colors.grey))),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
+              final email = ctrl.text.trim();
+              if (email.isEmpty) return;
               Navigator.pop(ctx);
+              await GroupService.instance.inviteMember(_group.id, email);
               AppNotification.show(context,
-                  message: 'Đã gửi lời mời đến ${ctrl.text}', type: NotifType.success);
+                  message: 'Đã gửi lời mời đến $email', type: NotifType.success);
             },
             style: ElevatedButton.styleFrom(backgroundColor: TColor.primary,
                 foregroundColor: Colors.white,
@@ -181,70 +180,125 @@ class _GroupDetailViewState extends State<GroupDetailView>
     }
   }
 
-  // ── Leave group ───────────────────────────────────────────────────────────
+  // ── Leave group (member) ──────────────────────────────────────
   Future<void> _leaveGroup() async {
     final ok = await AppNotification.confirm(context,
-        title: 'Rời khỏi nhóm',
-        message: 'Bạn có chắc muốn rời khỏi nhóm "${_group.name}"?',
+        title: 'Rời nhóm',
+        message: 'Bạn có chắc muốn rời nhóm "${_group.name}"?',
         confirmText: 'Rời nhóm', cancelText: 'Huỷ');
-    if (ok == true && mounted) {
+    if (ok != true || !mounted) return;
+    try {
+      await ServiceCall.fetchPost(SVKey.svGroupLeave, body: {
+        'groupId': _group.id,
+      }, isToken: true);
+      // Xóa khỏi local cache ngay lập tức
       await GroupService.instance.deleteGroup(_group.id);
-      AppNotification.show(context,
-          message: 'Đã rời khỏi nhóm "${_group.name}"', type: NotifType.info);
-      Navigator.pop(context);
+      if (mounted) {
+        AppNotification.show(context,
+            message: 'Đã rời nhóm "${_group.name}"', type: NotifType.info);
+        Navigator.pop(context, true); // true = cần reload
+      }
+    } catch (e) {
+      if (mounted) {
+        AppNotification.show(context,
+            message: e.toString(), type: NotifType.error);
+      }
     }
   }
 
-  // ── Withdraw ──────────────────────────────────────────────────────────────
-  Future<void> _withdrawMoney() async {
-    final balance = _group.wallet?.balance ?? 0;
-    if (balance <= 0) {
+  // ── Disband group (owner) ───────────────────────────────────
+  Future<void> _disbandGroup() async {
+    final ok = await AppNotification.confirm(context,
+        title: 'Giải tán nhóm',
+        message: 'Bạn có chắc muốn giải tán nhóm "${_group.name}"?',
+        confirmText: 'Giải tán', cancelText: 'Huỷ');
+    if (ok != true || !mounted) return;
+    try {
+      await ServiceCall.fetchPost(SVKey.svGroupDisband, body: {
+        'groupId': _group.id,
+      }, isToken: true);
+      await GroupService.instance.deleteGroup(_group.id);
+      if (mounted) {
+        AppNotification.show(context,
+            message: 'Đã giải tán nhóm "${_group.name}"', type: NotifType.info);
+        Navigator.pop(context, true); // true = cần reload
+      }
+    } catch (e) {
+      if (mounted) {
+        AppNotification.show(context,
+            message: e.toString(), type: NotifType.error);
+      }
+    }
+  }
+
+  // ── Remove member (owner only) ───────────────────────────────────
+  Future<void> _showRemoveMemberDialog() async {
+    final otherMembers = _group.members.where((m) => m.userId != _myId).toList();
+    if (otherMembers.isEmpty) {
       AppNotification.show(context,
-          message: 'Ví nhóm không có số dư để rút.', type: NotifType.warning);
+          message: 'Nhóm chưa có thành viên nào khác', type: NotifType.info);
       return;
     }
-    final ctrl = TextEditingController();
-    await showDialog(
+    await showModalBottomSheet(
       context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text('Rút tiền từ ví nhóm', style: TextStyle(fontWeight: FontWeight.w800)),
-        content: Column(mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('Số dư: ${balance.toStringAsFixed(0)} đ',
-              style: TextStyle(color: Colors.grey.shade600, fontSize: 13)),
-          const SizedBox(height: 12),
-          TextField(controller: ctrl, keyboardType: TextInputType.number, autofocus: true,
-            decoration: InputDecoration(hintText: 'Số tiền muốn rút...', suffixText: 'đ',
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: TColor.primary, width: 1.5)))),
-        ]),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx),
-              child: const Text('Huỷ', style: TextStyle(color: Colors.grey))),
-          ElevatedButton(
-            onPressed: () {
-              final amt = double.tryParse(ctrl.text.replaceAll(',', '')) ?? 0;
-              Navigator.pop(ctx);
-              if (amt <= 0 || amt > balance) {
-                AppNotification.show(context,
-                    message: amt <= 0 ? 'Số tiền không hợp lệ' : 'Vượt quá số dư!',
-                    type: NotifType.error);
-                return;
-              }
-              AppNotification.show(context,
-                  title: 'Yêu cầu đã gửi!',
-                  message: 'Rút ${amt.toStringAsFixed(0)} đ thành công.',
-                  type: NotifType.success);
-              // TODO: gọi API
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: TColor.primary,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-            child: const Text('Xác nhận', style: TextStyle(fontWeight: FontWeight.w700)),
-          ),
-        ],
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Xóa thành viên', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+            const SizedBox(height: 4),
+            Text('Chọn thành viên muốn xóa khỏi nhóm',
+                style: TextStyle(color: Colors.grey.shade600, fontSize: 13)),
+            const SizedBox(height: 16),
+            ...otherMembers.map((m) => ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: CircleAvatar(
+                backgroundColor: Colors.orange.withValues(alpha: 0.15),
+                child: Text(m.name.isNotEmpty ? m.name[0].toUpperCase() : '?',
+                    style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.w700)),
+              ),
+              title: Text(m.name, style: const TextStyle(fontWeight: FontWeight.w600)),
+              trailing: TextButton(
+                onPressed: () async {
+                  Navigator.pop(ctx);
+                  final ok = await AppNotification.confirm(context,
+                      title: 'Xóa thành viên',
+                      message: 'Xóa "${m.name}" khỏi nhóm?',
+                      confirmText: 'Xóa', cancelText: 'Huỷ');
+                  if (ok != true || !mounted) return;
+                  try {
+                    await ServiceCall.fetchPost(SVKey.svGroupRemoveMember, body: {
+                      'groupId': _group.id,
+                      'targetUserId': m.userId,
+                    }, isToken: true);
+                    final newMembers = _group.members.where((x) => x.userId != m.userId).toList();
+                    setState(() => _group = _group.copyWith(members: newMembers));
+                    await GroupService.instance.updateGroup(_group);
+                    if (mounted) {
+                      AppNotification.show(context,
+                          message: 'Đã xóa ${m.name} khỏi nhóm', type: NotifType.success);
+                    }
+                  } catch (e) {
+                    if (mounted) {
+                      AppNotification.show(context, message: e.toString(), type: NotifType.error);
+                    }
+                  }
+                },
+                style: TextButton.styleFrom(foregroundColor: Colors.red),
+                child: const Text('Xóa', style: TextStyle(fontWeight: FontWeight.w700)),
+              ),
+            )),
+            const SizedBox(height: 8),
+          ],
+        ),
       ),
     );
   }
@@ -274,7 +328,7 @@ class _GroupDetailViewState extends State<GroupDetailView>
               Text(_group.name,
                   style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
                   overflow: TextOverflow.ellipsis),
-            Text('${_group.members.length + (_group.ownerId.isNotEmpty ? 1 : 0)} thành viên',
+            Text('${_group.members.length + (_group.ownerId.isNotEmpty && !_group.members.any((m) => m.userId == _group.ownerId) ? 1 : 0)} thành viên',
                 style: const TextStyle(color: Colors.grey, fontSize: 11)),
             ])),
           ]),
@@ -338,52 +392,40 @@ class _GroupDetailViewState extends State<GroupDetailView>
             icon: const Icon(Icons.more_vert_rounded),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
             onSelected: (v) {
-              if (v == 'wallet') {
-                Navigator.push(context, MaterialPageRoute(builder: (_) => GroupWalletView(group: _group)));
-              } else if (v == 'withdraw') {
-                _withdrawMoney();
-              } else if (v == 'leave') {
-                _leaveGroup();
-              }
+              if (v == 'disband') _disbandGroup();
+              if (v == 'remove') _showRemoveMemberDialog();
+              if (v == 'leave') _leaveGroup();
             },
-            itemBuilder: (_) => const [
-              PopupMenuItem(value: 'wallet',
-                  child: ListTile(leading: Icon(Icons.account_balance_wallet_rounded, color: Color(0xFF2ECC71)),
-                      title: Text('Ví nhóm'), contentPadding: EdgeInsets.zero)),
-              PopupMenuItem(value: 'withdraw',
-                  child: ListTile(leading: Icon(Icons.arrow_circle_down_rounded, color: Color(0xFF6C63FF)),
-                      title: Text('Rút tiền'), contentPadding: EdgeInsets.zero)),
-              PopupMenuDivider(),
-              PopupMenuItem(value: 'leave',
-                  child: ListTile(leading: Icon(Icons.exit_to_app_rounded, color: Colors.red),
-                      title: Text('Rời nhóm', style: TextStyle(color: Colors.red)),
-                      contentPadding: EdgeInsets.zero)),
-            ],
+            itemBuilder: (_) => _isAdmin
+                ? [
+                    const PopupMenuItem(value: 'remove',
+                        child: ListTile(
+                          leading: Icon(Icons.person_remove_rounded, color: Colors.orange),
+                          title: Text('Xóa thành viên', style: TextStyle(color: Colors.orange)),
+                          contentPadding: EdgeInsets.zero)),
+                    const PopupMenuItem(value: 'disband',
+                        child: ListTile(
+                          leading: Icon(Icons.exit_to_app_rounded, color: Colors.red),
+                          title: Text('Giải tán nhóm', style: TextStyle(color: Colors.red)),
+                          contentPadding: EdgeInsets.zero)),
+                  ]
+                : [
+                    const PopupMenuItem(value: 'leave',
+                        child: ListTile(
+                          leading: Icon(Icons.logout_rounded, color: Colors.red),
+                          title: Text('Rời nhóm', style: TextStyle(color: Colors.red)),
+                          contentPadding: EdgeInsets.zero)),
+                  ],
           ),
         ],
-        bottom: TabBar(
-          controller: _tabCtrl,
-          labelColor: TColor.primary,
-          unselectedLabelColor: Colors.grey,
-          indicatorColor: TColor.primary,
-          indicatorWeight: 3,
-          labelStyle: const TextStyle(fontWeight: FontWeight.w700),
-          tabs: const [Tab(text: '💬 Chat'), Tab(text: '💰 Ngân sách')],
-        ),
       ),
-      body: TabBarView(
-        controller: _tabCtrl,
-        children: [
-          GroupChatTab(
-            messages: _messages,
-            myId: _myId,
-            isLoading: _isLoadingChat,
-            members: _group.members,
-            onSendText: _sendText,
-            onSendImage: () async {},
-          ),
-          GroupBudgetTab(group: _group),
-        ],
+      body: GroupChatTab(
+        messages: _messages,
+        myId: _myId,
+        isLoading: _isLoadingChat,
+        members: _group.members,
+        onSendText: _sendText,
+        onSendImage: () async {},
       ),
     );
   }

@@ -256,3 +256,36 @@ class GroupModel {
         pendingRequests: pendingRequests ?? this.pendingRequests,
       );
 }
+
+// ─── GroupInvitation ──────────────────────────────────────────────────────────
+class GroupInvitation {
+  final String id;
+  final String groupId;
+  final String groupName;
+  final String invitedEmail;
+  final DateTime invitedAt;
+
+  const GroupInvitation({
+    required this.id,
+    required this.groupId,
+    required this.groupName,
+    required this.invitedEmail,
+    required this.invitedAt,
+  });
+
+  factory GroupInvitation.fromJson(Map<String, dynamic> json) => GroupInvitation(
+        id: json['id']?.toString() ?? '',
+        groupId: json['groupId']?.toString() ?? '',
+        groupName: json['groupName']?.toString() ?? '',
+        invitedEmail: json['invitedEmail']?.toString() ?? '',
+        invitedAt: DateTime.tryParse(json['invitedAt']?.toString() ?? '') ?? DateTime.now(),
+      );
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'groupId': groupId,
+        'groupName': groupName,
+        'invitedEmail': invitedEmail,
+        'invitedAt': invitedAt.toIso8601String(),
+      };
+}

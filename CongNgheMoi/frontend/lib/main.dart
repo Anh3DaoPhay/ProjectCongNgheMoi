@@ -9,6 +9,7 @@ import 'package:food_delivery/view/shared/login/welcome_view.dart';
 import 'package:food_delivery/view/customer/main_tabview/main_tabview.dart';
 import 'package:food_delivery/view/shared/on_boarding/startup_view.dart';
 import 'package:food_delivery/view/staff/staff_main_tab_view.dart';
+import 'package:food_delivery/view/admin/admin_main_view.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:food_delivery/view/customer/group/group_service.dart';
 
@@ -20,19 +21,21 @@ SharedPreferences? prefs;
 bool isCanteenStaffUser(Map<String, dynamic> userPayload) {
   final role = userPayload['role']?.toString().trim().toLowerCase();
   if (role == 'canteen_staff') return true;
-  
   final maVaiTro = userPayload['maVaiTro'];
   if (maVaiTro != null && maVaiTro.toString() == '2') return true;
-
   return false;
+}
+
+bool isAdminUser(Map<String, dynamic> userPayload) {
+  final maVaiTro = userPayload['maVaiTro'];
+  return maVaiTro != null && maVaiTro.toString() == '3';
 }
 
 Widget resolveHomeByRole() {
   final user =
       Map<String, dynamic>.from(Globs.udValue(Globs.userPayload) as Map? ?? {});
-  if (isCanteenStaffUser(user)) {
-    return const StaffMainTabView();
-  }
+  if (isAdminUser(user)) return const AdminMainView();
+  if (isCanteenStaffUser(user)) return const StaffMainTabView();
   return const MainTabView();
 }
 

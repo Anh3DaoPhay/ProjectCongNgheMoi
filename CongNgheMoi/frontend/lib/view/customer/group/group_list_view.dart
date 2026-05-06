@@ -13,7 +13,22 @@ class GroupListView extends StatefulWidget {
 }
 
 class _GroupListViewState extends State<GroupListView> {
+  bool _loading = false;
+
   List<GroupModel> get _groups => GroupService.instance.groups.toList();
+
+  Future<void> _reloadFromAPI() async {
+    if (!mounted) return;
+    setState(() => _loading = true);
+    await GroupService.instance.reloadGroupsFromAPI();
+    if (mounted) setState(() => _loading = false);
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _reloadFromAPI();
+  }
 
   void _refresh() => setState(() {});
 
@@ -80,8 +95,18 @@ class _GroupListViewState extends State<GroupListView> {
         surfaceTintColor: Colors.white,
         elevation: 0,
         bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(1),
-          child: Container(height: 1, color: Colors.grey.shade100),
+          preferredSize: const Size.fromHeight(2),
+          child: Column(
+            children: [
+              if (_loading)
+                LinearProgressIndicator(
+                  backgroundColor: Colors.transparent,
+                  valueColor: AlwaysStoppedAnimation<Color>(TColor.primary),
+                  minHeight: 2,
+                ),
+              Container(height: 1, color: Colors.grey.shade100),
+            ],
+          ),
         ),
         actions: [
           IconButton(
@@ -103,7 +128,7 @@ class _GroupListViewState extends State<GroupListView> {
                   MaterialPageRoute(
                     builder: (_) => GroupDetailView(group: groups[i]),
                   ),
-                ).then((_) => _refresh()),
+                ).then((_) => _reloadFromAPI()),
                 onDelete: () async {
                   final ok = await AppNotification.confirm(context,
                       title: 'Xoá nhóm',

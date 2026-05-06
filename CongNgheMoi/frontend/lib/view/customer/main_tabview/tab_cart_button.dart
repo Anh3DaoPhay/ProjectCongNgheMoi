@@ -59,7 +59,7 @@ class TabCartButton extends StatelessWidget {
           ),
           const SizedBox(height: 2),
           Text(
-            'Giỏ hàng',
+            'Cart',
             style: TextStyle(
               color: isSelected ? TColor.primary : TColor.placeholder,
               fontSize: 10,

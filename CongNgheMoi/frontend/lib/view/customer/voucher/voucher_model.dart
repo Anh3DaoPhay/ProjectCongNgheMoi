@@ -65,7 +65,7 @@ class Voucher {
     final catName = (json['dishName'] ?? json['categoryName'])?.toString();
 
     return Voucher(
-      id: (json['id'] ?? json['promotionId'] ?? '').toString(),
+      id: (json['promotionId'] ?? json['id'] ?? '').toString(),
       code: json['code']?.toString() ?? '',
       title: json['title']?.toString() ?? '',
       description: json['description']?.toString() ?? '',

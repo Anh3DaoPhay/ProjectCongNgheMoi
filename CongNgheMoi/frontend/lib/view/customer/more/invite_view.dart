@@ -20,6 +20,7 @@ class _InviteViewState extends State<InviteView> {
   bool _isLoading = true;
   final int _totalInvited = 0;
   final double _totalBudget = 0;
+  final GlobalKey<MyGroupsCardState> _groupsCardKey = GlobalKey<MyGroupsCardState>();
 
   @override
   void initState() {
@@ -145,74 +146,22 @@ class _InviteViewState extends State<InviteView> {
               Row(children: [
                 InviteStatCard(icon: Icons.group_rounded, label: 'Đã mời',
                     value: '$_totalInvited', color: const Color(0xFF6C63FF)),
-                const SizedBox(width: 12),
-                InviteStatCard(icon: Icons.account_balance_wallet_rounded,
-                    label: 'Ngân sách', value: _fmt(_totalBudget),
-                    color: const Color(0xFF2ECC71)),
+                const Spacer(),
               ]),
               const SizedBox(height: 16),
 
-              // Mã giới thiệu
-              InviteCard(child: Column(children: [
-                Row(children: [
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: TColor.primary.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Icon(Icons.qr_code_rounded, color: TColor.primary, size: 22),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    const Text('Mã giới thiệu của bạn',
-                        style: TextStyle(fontSize: 12, color: Colors.grey)),
-                    Text(_referralCode,
-                        style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900,
-                            color: TColor.primary, letterSpacing: 4)),
-                  ])),
-                  IconButton(onPressed: _copyCode,
-                      icon: const Icon(Icons.copy_rounded), color: TColor.primary),
-                ]),
-                const SizedBox(height: 12),
-                const Divider(),
-                const SizedBox(height: 8),
-                const Text(
-                  'Chia sẻ mã này với bạn bè. Khi họ đăng ký và đặt hàng, cả hai được cộng ngân sách!',
-                  style: TextStyle(color: Colors.grey, fontSize: 13, height: 1.5),
-                  textAlign: TextAlign.center,
-                ),
-              ])),
-              const SizedBox(height: 16),
 
-              // Share buttons
-              InviteCard(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                const Text('Gửi lời mời qua',
-                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
-                const SizedBox(height: 14),
-                Row(children: [
-                  Expanded(child: InviteShareBtn(icon: Icons.mail_rounded, label: 'Gmail',
-                      color: const Color(0xFFEA4335), onTap: _shareViaEmail)),
-                  const SizedBox(width: 10),
-                  Expanded(child: InviteShareBtn(icon: Icons.phone_rounded, label: 'SMS',
-                      color: const Color(0xFF34A853), onTap: _shareViaSms)),
-                  const SizedBox(width: 10),
-                  Expanded(child: InviteShareBtn(icon: Icons.share_rounded, label: 'Khác',
-                      color: const Color(0xFF6C63FF), onTap: _shareViaOther)),
-                ]),
-              ])),
-              const SizedBox(height: 16),
-
-              // Nhập mã giới thiệu
-              const EnterReferralSection(),
-              const SizedBox(height: 16),
 
               // Tham gia nhóm
               const JoinGroupSection(),
               const SizedBox(height: 16),
 
               // Nhóm của tôi
-              MyGroupsCard(parentContext: context),
+              GroupNotificationsCard(
+                parentContext: context,
+                groupsCardKey: _groupsCardKey,
+              ),
+              MyGroupsCard(key: _groupsCardKey, parentContext: context),
               const SizedBox(height: 16),
 
               // Cách hoạt động

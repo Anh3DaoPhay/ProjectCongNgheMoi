@@ -28,9 +28,8 @@ class _HomeVoucherSectionState extends State<HomeVoucherSection> {
       if (VoucherService.instance.availableVouchers.isEmpty) {
         VoucherService.instance.loadAvailable();
       }
-      if (VoucherService.instance.myVouchers.isEmpty) {
-        VoucherService.instance.loadMyVouchers();
-      }
+      // Luôn load lại để đảm bảo trạng thái "đã thu thập" từ server là chính xác
+      VoucherService.instance.loadMyVouchers();
     });
   }
 
@@ -50,11 +49,10 @@ class _HomeVoucherSectionState extends State<HomeVoucherSection> {
   }
 
   List<Voucher> get _vouchers {
-    final all = VoucherService.instance.availableVouchers;
-    // Chưa lưu lên đầu, đã lưu xuống cuối
-    final uncollected = all.where((v) => !VoucherService.instance.hasCollected(v.id)).toList();
-    final collected   = all.where((v) =>  VoucherService.instance.hasCollected(v.id)).toList();
-    return [...uncollected, ...collected];
+    // Chỉ hiện voucher chưa thu thập, ẩn voucher đã lưu
+    return VoucherService.instance.availableVouchers
+        .where((v) => !VoucherService.instance.hasCollected(v.id))
+        .toList();
   }
 
   Future<void> _collect(Voucher v) async {

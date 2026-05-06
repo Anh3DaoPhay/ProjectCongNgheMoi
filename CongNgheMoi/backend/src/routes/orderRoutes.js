@@ -19,4 +19,10 @@ router.get('/staff-kds', authorizeRole([2]), OrderController.getStaffKDS);      
 router.put('/staff-kds/:dishId/swipe', authorizeRole([2]), OrderController.swipeKDSItem); // Đánh dấu món đã nấu xong
 router.get('/staff-statistics', authorizeRole([2]), OrderController.getStatistics); // Thống kê
 
+// ── Delivery Trip (Tab Ship) ─────────────────────────────────────────────────
+router.get('/staff-ready-items', authorizeRole([2]), OrderController.getReadyItems);                   // Lấy món đang ready
+router.post('/staff-start-trip', authorizeRole([2]), OrderController.startDeliveryTrip);              // Bắt đầu chuyến giao
+router.put('/staff-complete-trip/:tripId', authorizeRole([2]), OrderController.completeTrip);         // Hoàn tất chuyến
+router.get('/staff-active-trip', authorizeRole([2]), OrderController.getActiveTrip);                  // Chuyến đang giao
+
 module.exports = router;
